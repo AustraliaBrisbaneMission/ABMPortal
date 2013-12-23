@@ -1,0 +1,55 @@
+extend layout
+
+block head
+  title Admin - #{siteName}
+  script(src="/scripts/admin_users.js" type="text/javascript")
+
+block content
+  p.
+    Welcome to the Australia Brisbane Mission administration website!
+  p
+    table#users
+      tr
+        th Username
+        th Authority
+        th
+      each user in users
+        tr
+          td #{user.username}
+          case user.auth
+            when 0
+              td None
+            when 1
+              td Other
+            when 2
+              td Normal
+            when 3
+              td DL
+            when 4
+              td ZL
+            when 5
+              td Admin
+            default
+              td Unknown
+          td
+            form(method="post" action="/admin/users/delete" onsubmit="return deleteUser('#{user.username}')")
+              input(type="hidden" name="username" value="#{user.username}")
+              input(type="submit" value="DELETE")
+  h2 Create User
+  form#create_user(method="post" action="/admin/users/create")
+    div
+      span Username
+      input(type="text" name="username")
+    div
+      span Password
+      input(type="text" name="password")
+    div
+      span Authority
+      select(name="auth")
+        option(value="1") Other
+        option(value="2") Normal Missionary
+        option(value="3") District Leader
+        option(value="4" selected="selected") Zone Leader
+        option(value="5") Administrator
+    div#submit
+      input(type="submit" value="Create")

@@ -1,0 +1,15 @@
+extend essentials
+
+block header
+  title Graphs - #{siteName}
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+  script(src="/scripts/graph.js" type="text/javascript")
+  link(rel="stylesheet", href="/stylesheets/graph.css")
+
+block body
+  div#options
+    button.fullscreen_button(onclick="fullscreen()") Full Screen
+    span#status
+    select#reports
+    div#report_options
+  canvas.graph(width="600" height="400")

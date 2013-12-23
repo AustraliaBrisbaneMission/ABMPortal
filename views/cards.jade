@@ -1,0 +1,24 @@
+extend layout
+
+block head
+  title Order Cards - #{siteName}
+
+block content
+  h1 Card Order Form
+  form(action="POST")
+    div
+      h2 NAME
+      h3 [ELDER or SISTER][FIRST NAME][LAST NAME]
+      span Total of 35 Characters (including spaces)
+      br
+      input(type="text" maxlength="35" value="#{prefix}#{fullName}")
+    div
+      h2 Home Address Block
+      h3 Line 1: [STREET ADDRESS]
+      span Total of 26 spaces (includes spaces & characters (;,.-/))
+      br
+      input(type="text" maxlength="26" value="")
+      h3 Line 2: [CITY][STATE] (as QLD not Queensland) [POSTCODE]
+      span Total of 26 spaces (includes spaces & characters (;,.-/))
+      br
+      input(type="text" maxlength="26" value="")

@@ -1,0 +1,27 @@
+extend layout
+
+block head
+  title Recommendations - #{siteName}
+  script(src="/scripts/recommendations.js" type="text/javascript")
+  script(src="/scripts/ajax.js" type="text/javascript")
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+  script(type="text/javascript" src="https://code.jquery.com/ui/1.10.3/jquery-ui.js")
+  script(src="/scripts/json2.js" type="text/javascript")
+
+block content
+  div#header
+    h1 Transfer Recommendations
+    p.
+      To be discussed by <strong>both</strong> zone leaders then filled out separately.
+      It should be submitted on preparation day in week 5.
+  form#recommendations
+    div
+      span Zone:
+      input(type="text" name="zone" value="#{username}" disabled="true")
+      span Zone Leader:
+      input(type="text" name="zone_leader")
+    div
+      div#areas
+      input(type="button" value="Add Area" onclick="addArea()")
+    div#submit
+      input#submit_button(type="button" value="Submit Recommendations" onclick="submitRecommendation()")

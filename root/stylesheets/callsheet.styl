@@ -1,0 +1,46 @@
+@media print
+  body *
+    visibility hidden
+  
+  #callsheet_container
+    position absolute
+    left 0
+    top 0
+    right 0
+  
+  #callsheet_container *
+    visibility visible
+
+.callsheet
+  border 0.6mm solid black
+  border-collapse collapse
+  margin-left auto
+  margin-right auto
+  
+  .page_break
+    page-break-before always
+  
+  tr
+    height 3mm
+  
+  td
+    border 0.3mm solid black
+    padding 0.3mm
+    font-size 2.5mm
+    font-family Arial, "Helvetica Neue", Helvetica, sans-serif
+    background-color white
+  
+  .last_row
+    border-bottom 0.5mm solid black
+    height 0
+    padding 0
+  
+  .district
+    border-top 0.6mm solid black
+  
+  .zone
+    border-top 0.6mm solid black
+    text-align center
+    font-weight bold
+    font-size 4mm
+    padding-top 0mm

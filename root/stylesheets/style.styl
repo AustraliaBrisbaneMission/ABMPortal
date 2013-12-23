@@ -1,0 +1,262 @@
+/*
+ * Import nib
+ */
+@import 'nib'
+
+/*
+ * Grab a custom font from Google
+ */
+@import url('http://fonts.googleapis.com/css?family=Quicksand')
+
+/*
+ * Nib provides a CSS reset
+ */
+global-reset()
+
+/*
+ * Store the main color and
+ * background color as variables
+ */
+main-color = #fff
+background-color = #eee
+
+body
+  font-family 'Georgia'
+  background-color background-color
+  color #444
+  
+  h1
+    font-family 'Quicksand'
+    margin 13px 10px 4px
+    padding-bottom 10px
+    border-bottom 1px dotted #ddd
+    border-radius 2px 2px 0px 0px
+    margin-bottom 10px
+    font-size 1.1em
+  
+  #zones
+    border-collapse collapse
+    width 100%
+  
+    tr
+      border 1px solid #ccc
+    
+    td
+      padding 4px
+  
+  #create_zone
+    
+    #submit
+      float right
+
+header
+
+  /*
+   * Note the use of the `main-color`
+   * variable and the `darken` function
+   */
+  background-color #fff
+  background-image url("/stylesheets/images/abm.png")
+  background-repeat no-repeat
+  background-position center
+  height 150px
+  box-shadow 0 0 1em #000
+
+.container
+  margin 32px
+  overflow hidden
+  
+#user
+  float right
+  padding 8px
+
+.main-content
+  margin-left 200px
+  font-size 0.9em
+  
+  .rMissionary, .rZone, .rArea, .rDate
+    border 1px solid #ccc
+    margin 8px
+    padding 8px
+  
+  .rMissionary
+    background-color #eef
+  
+  .rArea
+    background-color #999
+    color #000
+  
+  .rZone
+    background-color #ccc
+    color #933
+  
+  .rDate
+    color #393
+    h3
+      font-weight bold
+    .clickable:hover
+      background-color #999
+      cursor pointer
+  
+  #users
+    border-collapse collapse
+    
+    th, td
+      border 1px #999 solid
+      padding 8px
+  
+  #sso
+    h1
+      padding 0
+      margin 0
+      border 0
+      font-size 26px
+      font-family Palatino, "Palatino linotype", Georgia, "Times New Roman", serif
+      color rgb(77, 77, 77)
+    .centeredSso
+      width 500px
+      margin 0 auto
+    .centeredContent
+      width 375px
+      margin 0 auto
+  #ssoContainer
+    font-family "Helvetica Neue", Helvetica, Arial, sans-serif
+    font-size 14px
+    color rgb(102, 102, 102)
+    margin 0 auto
+    width 500px
+    background-color rgb(207, 207, 207)
+    padding 25px 0
+    margin 10px auto 0 auto
+    position relative
+    border-radius 6px
+    #labelContainer label
+      width 375px
+      padding-left 2px
+    .forgot-link
+      width 371px
+      color rgb(0, 113, 188)
+      text-decoration none
+      display: block
+      text-align right
+      margin-right 10px
+      font-size 10px
+    .inputText
+      width 318px
+      margin-top 5px
+      border 1px solid #CFCFCF
+      box-shadow inset 1px 1px 2px rgb(105, 107, 103)
+      border-radius 5px
+      padding 10px 40px 10px 10px
+      outline 0
+      float none
+      font-size 14px
+    #username
+      background-image url(/stylesheets/images/keys.png)
+      background-repeat no-repeat
+      background-position 97% center
+  #submit
+    box-shadow inset 0px -14px 10px #94a257
+    background-color #b6c17f
+    border-radius 6px
+    border 1px solid #94a257
+    color #fff
+    font-weight normal
+    padding 9px 24px
+    text-decoration none
+    font-size 14px
+  #submit:hover
+    box-shadow inset 0px -14px 10px #b6c17f
+    background-color #94a257
+  #submitButton
+    text-align center
+    margin-top 20px
+  
+  #login
+    margin-left auto
+    margin-right auto
+    width 300px
+    
+    #error
+      color #600
+    
+    div
+      height 32px
+    
+    input
+      float right
+
+  p
+    margin-bottom 20px
+  
+  .area
+    border 1px #333 solid
+    margin 8px 0
+  
+    span, label
+      margin 0 4px
+    
+    .number_input
+      width 32px
+    
+    .comments
+      width 60%
+      min-width 300px
+  
+  .missionary
+    border 1px #999 solid
+    margin 2px 4px 2px 16px
+  
+  .right
+    float right
+
+.highlight
+  background-color #ff0
+
+.sidebar
+  float left
+  width 200px
+
+  .widget
+
+    /*
+     * Note the lack of vendor
+     * prefixes here. Nib will
+     * add them for us
+     */
+    border-radius 3px
+    border 1px solid #ccc
+    margin-right 20px
+    background-color main-color
+    box-shadow inset 0px 0px 0px 3px rgba(#fff, 0.8), 0px 3px 0px -2px rgba(#000, 0.1)
+    text-align center
+
+    h1
+      font-family 'Quicksand'
+      margin 13px 10px 4px
+      padding-bottom 10px
+      border-bottom 1px dotted #ddd
+      border-radius 2px 2px 0px 0px
+      margin-bottom 10px
+
+    ul
+      font-size 13px
+      padding 0px 10px
+      margin-bottom 10px
+    
+    li
+      margin-bottom 8px
+    
+    a
+      color #bbf
+
+p
+  line-height 1.8
+
+footer
+  width 500px
+  margin 50px auto
+  border-top 1px dotted #ccc
+  padding-top 5px
+  font-size 13px
+  text-align center

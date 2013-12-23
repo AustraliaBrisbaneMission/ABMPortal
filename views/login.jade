@@ -1,0 +1,27 @@
+extend layout
+
+block head
+  title Login - #{siteName}
+
+block content
+  form#sso(method="post")
+    div.centeredSso
+      h1 Sign in
+      if error
+        div#error
+          span #{error}
+    div#ssoContainer
+      div#content1
+        div.centeredContent
+          div#usernameContainer
+            div.label-container
+              label(for="username") LDS Account User Name
+            input#username.inputText(type="text" name="username" tabindex="1" autocomplete="off")
+            a.forgot-link(href="https://ldsaccount.lds.org/site/recover-username") Forgot your user name?
+          div#passwordContainer
+            div.label-container
+              label(for="password") Password
+            input#password.inputText(type="password" name="password" autocomplete="off" tabindex="2")
+            a.forgot-link(href="https://ldsaccount.lds.org/site/recover-password") Forgot your password?
+    div#submitButton
+      input#submit.button(type="submit" tabindex="3" value="Sign in")

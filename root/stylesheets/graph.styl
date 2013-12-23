@@ -1,0 +1,68 @@
+/*
+ * Import nib
+ */
+@import 'nib'
+
+/*
+ * Nib provides a CSS reset
+ */
+global-reset()
+
+body
+  font-family "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif"
+
+html, body
+  width 100%
+  height 100%
+  overflow hidden
+
+body
+  background-color #EEF
+
+#options
+  position fixed
+  left 0
+  right 0
+  bottom 0
+  padding 8px
+  background-color #FFF
+  box-shadow 0 0 1em #000
+  z-index 100
+  
+  .report_options, #reports
+    float left
+  
+  .fullscreen_button
+    float right
+
+.graph
+  position absolute
+  width 500px
+  height 300px
+  bottom 42px
+  border solid #000 2px
+  background-color #FFF
+  
+  div
+    margin 8px
+
+.graph:hover
+  border solid #66F 2px
+
+table
+  
+  td, th
+    padding 2px
+  
+  th
+    font-weight bold
+
+.grab
+  cursor grab
+  cursor -webkit-grab
+  cursor -moz-grab
+
+.grabbing
+  cursor grabbing
+  cursor -webkit-grabbing
+  cursor -moz-grabbing

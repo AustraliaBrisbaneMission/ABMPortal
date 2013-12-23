@@ -1,0 +1,21 @@
+extend essentials
+
+block header
+  title Area Analysis - #{siteName}
+  script(type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBDZBfXFxGHbBCsqEZcQjxFyJw_XRwNRNg&sensor=true")
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+  script(type="text/javascript" src="https://code.jquery.com/ui/1.10.3/jquery-ui.js")
+  link(rel="stylesheet", href="https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css")
+  script(type="text/javascript" src="/scripts/area_analysis/cluster.js")
+  script(type="text/javascript" src="/scripts/area_analysis/map.js")
+  script(type="text/javascript" src="/scripts/area_analysis/form.js")
+  script(type="text/javascript" src="/scripts/area_analysis/point.js")
+  script(type="text/javascript" src="/scripts/area_analysis/main.js")
+  script(type="text/javascript" src="/scripts/ajax.js")
+  link(rel="stylesheet", href="/stylesheets/area.css")
+
+block body
+  div#links
+    a.title(href="/")
+      h1 Australia Brisbane Mission
+  div#map

@@ -1,0 +1,22 @@
+extend layout
+
+block head
+  title Import Data From IMOS - #{siteName}
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+  script(src="/scripts/ucsv-1.1.0-min.js" type="text/javascript")
+  script(src="/scripts/imos.js" type="text/javascript")
+  script(src="/scripts/xml2json.js" type="text/javascript")
+
+block content
+  div
+    span Save as 'CSV (comma delimited)' before importing:
+    button#ki_delete CLEAR INDICATOR DATABASE
+  div#imports
+  div
+    ul
+      li
+        a(href="/imos/indicators.csv") Download Database for Excel (CSV)
+      li
+        a(href="/imos/stake_effectiveness_data.csv") Download Stake Effectiveness Report Data (Indicators by Ward/Stake per month)
+      li
+        a(href="/imos/effectiveness_data.csv") Download Effectiveness Report Data (Indicators by Area for last 3 weeks)

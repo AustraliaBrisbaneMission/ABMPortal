@@ -1,0 +1,14 @@
+{
+  "name": "ABMPortal",
+  "version": "0.5.1",
+  "private": "true",
+  "dependencies": {
+    "express": "*",
+    "jade": "*",
+    "stylus": "*",
+    "nib": "*",
+    "mongodb": "*",
+    "request": "*",
+    "nodemailer": "*"
+  }
+}

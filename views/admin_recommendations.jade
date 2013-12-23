@@ -1,0 +1,13 @@
+extend layout
+
+block head
+  title Transfer Recommendations Admin - #{siteName}
+  script(src="/scripts/admin_recommendations.js" type="text/javascript")
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+
+block content
+  div#header
+    h1 Transfer Recommendations Submitted
+    div#filter_box
+    div#result_box
+      p Loading...
