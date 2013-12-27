@@ -895,7 +895,9 @@ var SSO = {
     }
 };
 
-server.listen(process.env.PORT, process.env.IP, function() {
+var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || null;
+var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 80;
+server.listen(port, ip, function() {
     console.log("ABM Admin Website running...");
 });
 
