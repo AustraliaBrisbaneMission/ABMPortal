@@ -251,6 +251,16 @@ server.get('/email', function (req, res) {
         callback: function(response) { res.send(response); }
     });
 });
+server.get('/mongo', function (req, res) {
+    res.send('<form method="POST"><input type="text" name="connect" /><input type="submit" /></form>');
+});
+server.post('/mongo', function (req, res) {
+    var url = req.param('connect');
+    mongodb.MongoClient.connect(url, function(err, database) {
+        if(err) res.send("Error: " + err + " & URL: " + url);
+        else res.send("Success! & URL: " + url);
+    });
+});
 
 //Email
 var Email = new (function() {
