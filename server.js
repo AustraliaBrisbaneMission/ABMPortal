@@ -27,7 +27,7 @@ var Config = {
 //Database Setup
 var mongoUrl = Config.db.url || "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
 mongodb.MongoClient.connect(mongoUrl, function(err, database) {
-    if(err) return console.dir(err);
+    if(err) return console.error("MongoDB Connection Error: " + err);
     db.database = database;
     db.recommendations = database.collection('recommendations');
     db.users = database.collection('users');
@@ -116,6 +116,8 @@ var Auth = {
         db.users.findOne(query, function(err, item) { console.log("DEBUG user: " + item); });
         db.users.find({}, function(err, items) { console.log("DEBUG all: " + items.length); });
         db.users.findOne({}, function(err, item) { console.log("DEBUG all one: " + item); });
+        console.log("MongoDB URL: " + mongoUrl);
+        console.log("MongoDB ENV URL: " + process.env.OPENSHIFT_MONGODB_DB_URL);
         //-------------------
         
         //Check the database first
