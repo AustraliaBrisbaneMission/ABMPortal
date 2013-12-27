@@ -112,6 +112,8 @@ var Auth = {
         };
         db.users.findOne(query, function(err, item) {
             if(err) { console.log(err); done(false); return; }
+            console.log("username: " + query.username.$regex + " & password: " + query.password);
+            console.log("item: " + item);
             if(item) {
                 req.session.sso = null;
                 req.session.username = item.username;
