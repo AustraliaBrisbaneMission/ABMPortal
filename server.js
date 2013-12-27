@@ -105,6 +105,17 @@ var Auth = {
             callback(success);
         }
         
+        //OpenShift Debugging
+        var query = { username: { $regex : new RegExp("admin", "i") }, password: md5(password) };
+        db.users.findOne(query, function(err, item) { console.log("DEBUG normal: " + item); });
+        var query = { username: { $regex : new RegExp("admin", "i") } };
+        db.users.findOne(query, function(err, item) { console.log("DEBUG no pass: " + item); });
+        var query = { password: md5(password) };
+        db.users.findOne(query, function(err, item) { console.log("DEBUG no user: " + item); });
+        var query = { username: username, password: md5(password) };
+        db.users.findOne(query, function(err, item) { console.log("DEBUG user=" + username + ": " + item); });
+        //-------------------
+        
         //Check the database first
         var query = {
             username: { $regex : new RegExp(username, "i") },
