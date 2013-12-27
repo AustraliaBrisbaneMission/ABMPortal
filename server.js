@@ -98,14 +98,18 @@ var Auth = {
         }
         */
         
+        function done(success) {
+            if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in!");
+            callback(success);
+        }
+        
         //Check the database first
         var query = {
             username: { $regex : new RegExp(username, "i") },
             password: md5(password)
         };
         db.users.findOne(query, function(err, item) {
-            if(err) { console.log(err); callback(false); return; }
-            console.log(item);
+            if(err) { console.log(err); done(false); return; }
             if(item) {
                 req.session.sso = null;
                 req.session.username = item.username;
@@ -114,7 +118,7 @@ var Auth = {
                 req.session.fullName = item.username;
                 req.session.photoUrl = null;
                 req.session.auth = item.auth;
-                callback(true);
+                done(true);
             }
             else {
                 //Try SSO if the user is not in the database
@@ -149,15 +153,21 @@ var Auth = {
                             req.session.fullName = username;
                             req.session.auth = Auth.OTHER;
                             Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-assignment", function(result) {
-                                result = JSON.parse(result);
-                                if(result.asgLocName == "Australia Brisbane Mission") {
+                                if(!result.fullName) {
+                                    Auth.logout(req);
+                                    done(false);
+                                }
+                                else if(result.asgLocName == "Australia Brisbane Mission") {
                                     req.session.prefix = result.msnyIsElder ? "Elder " : "Sister ";
                                     req.session.displayName = req.session.prefix + result.lastName;
                                     req.session.fullName = result.fullName;
                                     req.session.auth = Auth.NORMAL;
+                                    done(true);
                                 }
-                                else req.session.displayName = result.fullName;
-                                callback(true);
+                                else {
+                                    req.session.displayName = result.fullName;
+                                    done(true);
+                                }
                             });
                             return;
                         }
@@ -165,7 +175,7 @@ var Auth = {
                     
                     //Login fail
                     Auth.logout(req);
-                    callback(false);
+                    done(false);
                 });
             }
         });
@@ -185,12 +195,17 @@ var Auth = {
     },
     sso: function(req, uri, callback, options) {
         if(!req.session.sso) { callback("Error! Not logged in to SSO!"); return; }
+        /*
+        //Cookie Jar doesn't work properly :(
+        var cookie = request.cookie("ObSSOCookie=" + req.session.sso);
         var cookieJar = request.jar();
-        cookieJar.add(request.cookie("ObSSOCookie=" + req.session.sso));
+        cookieJar.setCookie(cookie, uri, function(err, cookie) {});
+        */
         var data = {
             uri: uri,
             method: "GET",
-            jar: cookieJar
+            //jar: cookieJar
+            headers: { "Cookie": "ObSSOCookie=" + req.session.sso }
         };
         if(options) {
             for(var option in options) data[option] = options[option];
@@ -199,7 +214,8 @@ var Auth = {
             var status = response.statusCode;
             if(error) callback("Error Connecting to Server: " + error);
             else if(status != 200) callback("Status Error: " + status);
-            else callback(body);
+            else try { callback(JSON.parse(body)); }
+            catch(error) { callback("JSON Error: " + body); }
         });
     }
 };
@@ -232,7 +248,7 @@ server.get('/email', function (req, res) {
 });
 
 //Email
-var Email = new function() {
+var Email = new (function() {
     var me = this;
     var from = {
         name: Config.email.name,
@@ -265,7 +281,7 @@ var Email = new function() {
             else if(options.callback) options.callback(response);
         });
     };
-};
+})();
 
 //Web Pages
 function render(req, res, page, params) {
