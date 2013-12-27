@@ -25,7 +25,6 @@ var Config = {
 };
 
 //Database Setup
-
 var mongoUrl = Config.db.url ?
     Config.db.url + Config.db.name :
     "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
