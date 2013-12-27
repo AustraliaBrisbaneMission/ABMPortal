@@ -25,7 +25,10 @@ var Config = {
 };
 
 //Database Setup
-var mongoUrl = Config.db.url || "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
+
+var mongoUrl = Config.db.url ?
+    Config.db.url + db.name :
+    "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
 mongodb.MongoClient.connect(mongoUrl, function(err, database) {
     if(err) return console.error("MongoDB Connection Error: " + err);
     db.database = database;
