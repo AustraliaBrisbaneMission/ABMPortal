@@ -113,7 +113,9 @@ var Auth = {
         var query = { password: md5(password) };
         db.users.findOne(query, function(err, item) { console.log("DEBUG no user: " + item); });
         var query = { username: username, password: md5(password) };
-        db.users.findOne(query, function(err, item) { console.log("DEBUG user=" + username + ": " + item); });
+        db.users.findOne(query, function(err, item) { console.log("DEBUG user: " + item); });
+        db.users.find({}, function(err, items) { console.log("DEBUG all: " + items.length); });
+        db.users.findOne({}, function(err, item) { console.log("DEBUG all one: " + item); });
         //-------------------
         
         //Check the database first
