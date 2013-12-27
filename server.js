@@ -28,7 +28,6 @@ var Config = {
 var mongoUrl = Config.db.url ?
     Config.db.url + Config.db.name :
     "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
-console.log("db url: " + mongoUrl);
 mongodb.MongoClient.connect(mongoUrl, function(err, database) {
     if(err) return console.error("MongoDB Connection Error: " + err);
     db.database = database;
@@ -251,6 +250,8 @@ server.get('/email', function (req, res) {
         callback: function(response) { res.send(response); }
     });
 });
+
+
 server.get('/mongo', function (req, res) {
     res.send('<form method="POST"><input type="text" name="connect" /><input type="submit" /></form>');
 });
@@ -258,7 +259,11 @@ server.post('/mongo', function (req, res) {
     var url = req.param('connect');
     mongodb.MongoClient.connect(url, function(err, database) {
         if(err) res.send("Error: " + err + " & URL: " + url);
-        else res.send("Success! & URL: " + url);
+        else {
+            var users = database.collection('users');
+            console.log("Users=" + users);
+            
+        }
     });
 });
 
