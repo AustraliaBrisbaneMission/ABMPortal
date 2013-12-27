@@ -28,36 +28,43 @@ var Config = {
 var mongoUrl = Config.db.url ?
     Config.db.url + Config.db.name :
     "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
-mongodb.MongoClient.connect(mongoUrl, function(err, database) {
-    if(err) return console.error("MongoDB Connection Error: " + err);
-    db.database = database;
-    db.recommendations = database.collection('recommendations');
-    db.users = database.collection('users');
-    db.indicators = database.collection('indicators');
-    db.callsheet = database.collection('callsheet');
-    db.config = database.collection('config');
-    areaAnalysisCollections = {
-        area: database.collection('area'),
-        chapel: database.collection('chapel'),
-        flat: database.collection('flat'),
-        ward: database.collection('ward'),
-        missionary: database.collection('missionaries')
-    };
-    imosCollections = {
-        indicators: database.collection('indicators'),
-        flat: database.collection('flat'),
-        ward: database.collection('ward')
-    };
-    //Get configuration options
-    db.config.find().toArray(function(err, items) {
-        for(var i = 0; i < items.length; i++) {
-            var item = items[i];
-            if(!Config[item.category]) Config[item.category] = {};
-            var category = Config[item.category];
-            
+function connect() {
+    mongodb.MongoClient.connect(mongoUrl, function(err, database) {
+        if(err) {
+            console.error("MongoDB Connection Error: " + err);
+            setTimeout(connect, 1000);
+            return;
         }
+        db.database = database;
+        db.recommendations = database.collection('recommendations');
+        db.users = database.collection('users');
+        db.indicators = database.collection('indicators');
+        db.callsheet = database.collection('callsheet');
+        db.config = database.collection('config');
+        areaAnalysisCollections = {
+            area: database.collection('area'),
+            chapel: database.collection('chapel'),
+            flat: database.collection('flat'),
+            ward: database.collection('ward'),
+            missionary: database.collection('missionaries')
+        };
+        imosCollections = {
+            indicators: database.collection('indicators'),
+            flat: database.collection('flat'),
+            ward: database.collection('ward')
+        };
+        //Get configuration options
+        db.config.find().toArray(function(err, items) {
+            for(var i = 0; i < items.length; i++) {
+                var item = items[i];
+                if(!Config[item.category]) Config[item.category] = {};
+                var category = Config[item.category];
+                
+            }
+        });
     });
-});
+}
+connect();
 function dbCallback(err, result) {
     if(err) return console.log(err);
     console.log(result);
