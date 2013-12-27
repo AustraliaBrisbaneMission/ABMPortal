@@ -12,9 +12,10 @@ var express = require('express'),
 //Configuration
 var Config = {
     db: {
+        url: process.env.OPENSHIFT_MONGODB_DB_URL || null,
         name: "abm",
         ip: "localhost",
-        port: 27017
+        port: process.env.OPENSHIFT_MONGODB_DB_PORT || 27017
     },
     email: {
         name: "ABM",
@@ -24,7 +25,8 @@ var Config = {
 };
 
 //Database Setup
-mongodb.MongoClient.connect("mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name, function(err, database) {
+var mongoUrl = Config.db.url || "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
+mongodb.MongoClient.connect(mongoUrl, function(err, database) {
     if(err) return console.dir(err);
     db.database = database;
     db.recommendations = database.collection('recommendations');
@@ -856,44 +858,6 @@ server.post('/area_analysis/db', function (req, res) {
     }
     else res.send(500, "Unknown action");
 });
-
-var SSO = {
-    login: function(username, password) {
-        var data = {
-            uri: "https://lds.org/login.html",
-            method: "POST",
-            form: {
-                username: username,
-                password: password
-            }
-        };
-        request(data, function(error, response, body) {
-            if(error) {
-                callback({
-                    error: "Error connecting to server! Please try again later.",
-                    console: "Request Error: " + error
-                });
-                return;
-            }
-            if(response.statusCode != 200) {
-                callback({
-                    error: "Error! Please check the username or password and try again.",
-                    console: "Status Error: " + response.statusCode
-                });
-                return;
-            }
-            var cookies = response.headers["set-cookie"], token = "";
-            if(!cookies || !cookies.length) {
-                callback({
-                    error: "Error! Please try again.",
-                    console: "Cookie Error: No cookies received"
-                });
-                return;
-            }
-            callback({ token: cookies[0].split(';')[0].split('=')[1] });
-        });
-    }
-};
 
 var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || null;
 var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 80;
