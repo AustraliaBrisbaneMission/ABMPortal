@@ -31,7 +31,7 @@ var mongoUrl = Config.db.url ?
 function connect() {
     mongodb.MongoClient.connect(mongoUrl, function(err, database) {
         if(err) {
-            console.error("MongoDB Connection Error: " + err);
+            console.error("MongoDB Connection Error @ [" + mongoUrl + "]: " + err);
             setTimeout(connect, 1000);
             return;
         }
@@ -267,9 +267,9 @@ server.post('/mongo', function (req, res) {
     mongodb.MongoClient.connect(url, function(err, database) {
         if(err) res.send("Error: " + err + " & URL: " + url);
         else {
-            var users = database.collection('users');
-            console.log("Users=" + users);
-            
+            var users = database.collection('users'), user = "";
+            if(users) user = users.findOne();
+            res.send("[" + url + "] Users = " + users + " & first user = " + user);
         }
     });
 });
