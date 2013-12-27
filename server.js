@@ -108,21 +108,6 @@ var Auth = {
             callback(success);
         }
         
-        //OpenShift Debugging
-        var query = { username: { $regex : new RegExp("admin", "i") }, password: md5(password) };
-        db.users.findOne(query, function(err, item) { console.log("DEBUG normal: " + item); });
-        var query = { username: { $regex : new RegExp("admin", "i") } };
-        db.users.findOne(query, function(err, item) { console.log("DEBUG no pass: " + item); });
-        var query = { password: md5(password) };
-        db.users.findOne(query, function(err, item) { console.log("DEBUG no user: " + item); });
-        var query = { username: username, password: md5(password) };
-        db.users.findOne(query, function(err, item) { console.log("DEBUG user: " + item); });
-        db.users.find({}, function(err, items) { console.log("DEBUG all: " + items.length); });
-        db.users.findOne({}, function(err, item) { console.log("DEBUG all one: " + item); });
-        console.log("MongoDB URL: " + mongoUrl);
-        console.log("MongoDB ENV URL: " + process.env.OPENSHIFT_MONGODB_DB_URL);
-        //-------------------
-        
         //Check the database first
         var query = {
             username: { $regex : new RegExp(username, "i") },
@@ -130,8 +115,6 @@ var Auth = {
         };
         db.users.findOne(query, function(err, item) {
             if(err) { console.log(err); done(false); return; }
-            console.log("username: " + query.username.$regex + " & password: " + query.password);
-            console.log("item: " + item);
             if(item) {
                 req.session.sso = null;
                 req.session.username = item.username;
