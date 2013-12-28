@@ -11,11 +11,16 @@ var express = require('express'),
 
 //Configuration
 var Config = {
-    db: {
-        url: process.env.OPENSHIFT_MONGODB_DB_URL || null,
+    nodejs: {
+        ip: process.env.ABMPORTAL_NODEJS_IP || process.env.IP || "127.0.0.1",
+        port: parseInt(process.env.ABMPORTAL_NODEJS_PORT) || parseInt(process.env.PORT) || 80
+    },
+    mongodb: {
         name: "abm",
-        ip: "localhost",
-        port: process.env.OPENSHIFT_MONGODB_DB_PORT || 27017
+        ip: process.env.ABMPORTAL_MONGODB_IP || process.env.IP || "127.0.0.1",
+        port: parseInt(process.env.ABMPORTAL_MONGODB_PORT) || 27017,
+        username: process.env.ABMPORTAL_MONGODB_USERNAME || null,
+        password: process.env.ABMPORTAL_MONGODB_PASSWORD || null
     },
     email: {
         name: "ABM",
@@ -23,38 +28,43 @@ var Config = {
         password: null
     }
 };
+function dumpConfig() {
+    for(var a in Config) {
+        for(var b in Config[a]) {
+            console.log("Config." + a + "." + b + "=" + Config[a][b]);
+        }
+    }
+}
 
 //Database Setup
-var mongoUrl = Config.db.url ?
-    Config.db.url + Config.db.name :
-    "mongodb://" + Config.db.ip + ":" + Config.db.port + "/" + Config.db.name;
-function connect() {
-    mongodb.MongoClient.connect(mongoUrl, function(err, database) {
-        if(err) {
-            console.error("MongoDB Connection Error @ [" + mongoUrl + "]: " + err);
-            setTimeout(connect, 1000);
-            return;
-        }
-        db.database = database;
-        db.recommendations = database.collection('recommendations');
-        db.users = database.collection('users');
-        db.indicators = database.collection('indicators');
-        db.callsheet = database.collection('callsheet');
-        db.config = database.collection('config');
+//TODO: implement new way to connect https://github.com/openshift-quickstart/farmstand-nodejs-mongodb-example/blob/master/farmstand-mongodb.js
+var db = {};
+var mongoServer = new mongodb.Server(Config.mongodb.ip, Config.mongodb.port, { auto_reconnect: true, w: 1 }, {});
+db.db = new mongodb.Db(Config.mongodb.name, mongoServer);
+db.db.open(function(error, database) {
+    db.database = database;
+    if(error) { console.error("MongoDB Open Error: " + error); return; }
+    function getCollections() {
+        db.recommendations = db.database.collection('recommendations');
+        db.users = db.database.collection('users');
+        db.indicators = db.database.collection('indicators');
+        db.callsheet = db.database.collection('callsheet');
+        db.config = db.database.collection('config');
         areaAnalysisCollections = {
-            area: database.collection('area'),
-            chapel: database.collection('chapel'),
-            flat: database.collection('flat'),
-            ward: database.collection('ward'),
-            missionary: database.collection('missionaries')
+            area: db.database.collection('area'),
+            chapel: db.database.collection('chapel'),
+            flat: db.database.collection('flat'),
+            ward: db.database.collection('ward'),
+            missionary: db.database.collection('missionaries')
         };
         imosCollections = {
-            indicators: database.collection('indicators'),
-            flat: database.collection('flat'),
-            ward: database.collection('ward')
+            indicators: db.database.collection('indicators'),
+            flat: db.database.collection('flat'),
+            ward: db.database.collection('ward')
         };
         //Get configuration options
         db.config.find().toArray(function(err, items) {
+            if(error) { console.log("MongoDB Config Error: " + error); return; }
             for(var i = 0; i < items.length; i++) {
                 var item = items[i];
                 if(!Config[item.category]) Config[item.category] = {};
@@ -62,16 +72,22 @@ function connect() {
                 
             }
         });
-    });
-}
-connect();
+    }
+    if(Config.mongodb.username) {
+        database.authenticate(Config.mongodb.username, Config.mongodb.password, function(error, result) {
+            if(error) console.log("MongoDB Auth Error: " + error);
+            else getCollections();
+        });
+    }
+    else getCollections();
+});
 function dbCallback(err, result) {
     if(err) return console.log(err);
     console.log(result);
 }
 
 //Server Setup
-var server = express(), db = {};
+var server = express();
 server.use(express.bodyParser());
 function compile(str, path) {
     return stylus(str)
@@ -252,12 +268,18 @@ server.get('/checklogin', function (req, res) {
 server.get('/noauth', function (req, res) {
     render(req, res, "noauth", {});
 });
+
+// --- TESTING ---
 server.get('/email', function (req, res) {
     Email.send({
         callback: function(response) { res.send(response); }
     });
 });
 
+server.get('/dumpconfig', function (req, res) {
+    dumpConfig();
+    res.send('Config dumped to console');
+});
 
 server.get('/mongo', function (req, res) {
     res.send('<form method="POST"><input type="text" name="connect" /><input type="submit" /></form>');
@@ -273,6 +295,7 @@ server.post('/mongo', function (req, res) {
         }
     });
 });
+// --------------
 
 //Email
 var Email = new (function() {
@@ -884,9 +907,7 @@ server.post('/area_analysis/db', function (req, res) {
     else res.send(500, "Unknown action");
 });
 
-var ip = process.env.IP || process.env.OPENSHIFT_NODEJS_IP || null;
-var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 80;
-server.listen(port, ip, function() {
+server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
     console.log("ABM Admin Website running...");
 });
 
