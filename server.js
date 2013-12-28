@@ -40,8 +40,8 @@ dumpConfig();
 //Database Setup
 //TODO: implement new way to connect https://github.com/openshift-quickstart/farmstand-nodejs-mongodb-example/blob/master/farmstand-mongodb.js
 var db = {};
-var mongoServer = new mongodb.Server(Config.mongodb.ip, Config.mongodb.port, { auto_reconnect: true, w: 1 }, {});
-db.db = new mongodb.Db(Config.mongodb.name, mongoServer);
+db.mongoServer = new mongodb.Server(Config.mongodb.ip, Config.mongodb.port);
+db.db = new mongodb.Db(Config.mongodb.name, db.mongoServer, { auto_reconnect: true, w: 1 });
 db.db.open(function(error, database) {
     db.database = database;
     if(error) { console.error("MongoDB Open Error: " + error); return; }
@@ -75,7 +75,7 @@ db.db.open(function(error, database) {
         });
     }
     if(Config.mongodb.username) {
-        database.authenticate(Config.mongodb.username, Config.mongodb.password, function(error, result) {
+        db.db.authenticate(Config.mongodb.username, Config.mongodb.password, { authdb: "admin" }, function(error, result) {
             if(error) console.log("MongoDB Auth Error: " + error);
             else getCollections();
         });
