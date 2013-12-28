@@ -12,15 +12,15 @@ var express = require('express'),
 //Configuration
 var Config = {
     nodejs: {
-        ip: process.env.ABMPORTAL_NODEJS_IP || process.env.IP || "127.0.0.1",
-        port: parseInt(process.env.ABMPORTAL_NODEJS_PORT) || parseInt(process.env.PORT) || 80
+        ip: process.env.ABMPORTAL_NODEJS_IP || process.env.OPENSHIFT_NODEJS_IP || process.env.IP || "127.0.0.1",
+        port: parseInt(process.env.ABMPORTAL_NODEJS_PORT) || parseInt(process.env.OPENSHIFT_NODEJS_PORT) || parseInt(process.env.PORT) || 80
     },
     mongodb: {
         name: "abm",
-        ip: process.env.ABMPORTAL_MONGODB_IP || process.env.IP || "127.0.0.1",
-        port: parseInt(process.env.ABMPORTAL_MONGODB_PORT) || 27017,
-        username: process.env.ABMPORTAL_MONGODB_USERNAME || null,
-        password: process.env.ABMPORTAL_MONGODB_PASSWORD || null
+        ip: process.env.ABMPORTAL_MONGODB_IP || process.env.OPENSHIFT_MONGODB_DB_HOST || process.env.IP || "127.0.0.1",
+        port: parseInt(process.env.ABMPORTAL_MONGODB_PORT) || parseInt(process.env.OPENSHIFT_MONGODB_DB_PORT) || 27017,
+        username: process.env.ABMPORTAL_MONGODB_USERNAME || process.env.OPENSHIFT_MONGODB_DB_USERNAME || null,
+        password: process.env.ABMPORTAL_MONGODB_PASSWORD || process.env.OPENSHIFT_MONGODB_DB_PASSWORD || null
     },
     email: {
         name: "ABM",
