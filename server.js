@@ -35,6 +35,7 @@ function dumpConfig() {
         }
     }
 }
+dumpConfig();
 
 //Database Setup
 //TODO: implement new way to connect https://github.com/openshift-quickstart/farmstand-nodejs-mongodb-example/blob/master/farmstand-mongodb.js
