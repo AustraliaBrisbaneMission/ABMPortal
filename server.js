@@ -10,6 +10,7 @@ var express = require('express'),
     nodemailer = require("nodemailer");
 
 //Configuration
+//TODO: Find a better (cross-platform) way to get these variables
 var Config = {
     nodejs: {
         ip: process.env.ABMPORTAL_NODEJS_IP || process.env.OPENSHIFT_NODEJS_IP || process.env.IP || "127.0.0.1",
@@ -38,7 +39,6 @@ function dumpConfig() {
 dumpConfig();
 
 //Database Setup
-//TODO: implement new way to connect https://github.com/openshift-quickstart/farmstand-nodejs-mongodb-example/blob/master/farmstand-mongodb.js
 var db = {};
 db.mongoServer = new mongodb.Server(Config.mongodb.ip, Config.mongodb.port);
 db.db = new mongodb.Db(Config.mongodb.name, db.mongoServer, { auto_reconnect: true, w: 1 });
