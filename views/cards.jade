@@ -5,20 +5,54 @@ block head
 
 block content
   h1 Card Order Form
-  form(action="POST")
+  span.message #{message}
+  div
+    img(src="stylesheets/images/cards.png" alt="Example (Not to scale)")
+  a(href="stylesheets/images/Missionary Contact Card Brief and Order form.pdf") Click here for more information about the cards...
+  form(method="POST" action="/cards")
+    div
+      h2 Number of Packs
+      span Cost will be deducted from your allotment. (1 Pack = $#{price})
+      br
+      input#packCount(type="text" name="packs" value="#{values.packs}" disabled=success)
+      span#totalCost
     div
       h2 NAME
       h3 [ELDER or SISTER][FIRST NAME][LAST NAME]
       span Total of 35 Characters (including spaces)
       br
-      input(type="text" maxlength="35" value="#{prefix}#{fullName}")
+      input.cardOrder(type="text" name="name" maxlength="35" value="#{values.name}" disabled=success)
     div
-      h2 Home Address Block
+      h2 HOME ADDRESS BLOCK
       h3 Line 1: [STREET ADDRESS]
-      span Total of 26 spaces (includes spaces & characters (;,.-/))
+      span Total of 26 spaces (including spaces & symbols (;,.-/))
       br
-      input(type="text" maxlength="26" value="")
+      input.cardOrder(type="text" name="address1" maxlength="26" value="#{values.address1}" disabled=success)
       h3 Line 2: [CITY][STATE] (as QLD not Queensland) [POSTCODE]
-      span Total of 26 spaces (includes spaces & characters (;,.-/))
+      span Total of 26 spaces (including spaces & symbols (;,.-/))
       br
-      input(type="text" maxlength="26" value="")
+      input.cardOrder(type="text" name="address2" maxlength="26" value="#{values.address2}" disabled=success)
+      h3 Line 3: [COUNTRY]
+      span Total of 26 spaces (including spaces & symbols (;,.-/))
+      br
+      input.cardOrder(type="text" name="address3" maxlength="26" value="#{values.address3}" disabled=success)
+    div
+      h2 EMAIL
+      h3 (HOME or MISSION)
+      span Total of 30 Characters (including symbols)
+      br
+      input.cardOrder(type="text" name="email" maxlength="30" value="#{values.email}" disabled=success)
+    div
+      input(type="submit" value="Order Cards" disabled=success)
+    script.
+      var price = #{price}, packCount = document.getElementById('packCount');
+      function costChanged() {
+          var cost = (#{price} * parseInt(packCount.value)).toFixed(2);
+          if(cost == "NaN") {
+              packCount.value = 1;
+              costChanged();
+          }
+          else document.getElementById('totalCost').textContent = " = $" + cost;
+      }
+      packCount.addEventListener('change', costChanged, false);
+      costChanged();

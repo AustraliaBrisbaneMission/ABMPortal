@@ -158,6 +158,9 @@ header {
   float: right;
   padding: 8px;
 }
+.cardOrder {
+  width: 400px;
+}
 .main-content {
   margin-left: 200px;
   font-size: 0.9em;

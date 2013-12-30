@@ -24,9 +24,16 @@ var Config = {
         password: process.env.ABMPORTAL_MONGODB_PASSWORD || process.env.OPENSHIFT_MONGODB_DB_PASSWORD || null
     },
     email: {
-        name: "ABM",
-        address: "abm.field@gmail.com",
-        password: null
+        name: "",
+        address: "",
+        password: ""
+    },
+    cards: {
+        price: "",
+        printerName: "",
+        printerEmail: "",
+        financeName: "",
+        financeEmail: ""
     }
 };
 function dumpConfig() {
@@ -71,6 +78,7 @@ db.db.open(function(error, database) {
                 var category = Config[item.category];
                 category[item.name] = item.value;
             }
+            Email = new Emailer();
         });
     }
     if(Config.mongodb.username) {
@@ -278,40 +286,42 @@ server.get('/email', function (req, res) {
 // --------------
 
 //Email
-var Email = new (function() {
+var Email;
+var Emailer = function() {
     var me = this;
-    var from = {
-        name: Config.email.name,
-        email: Config.email.address,
-        password: Config.email.password
-    };
-    var to = [{
-        name: "Nephi",
-        email: "jack.field@myldsmail.net"
-    }];
-    
     var smtpTransport = nodemailer.createTransport("SMTP", {
-        service: "Gmail",
-        auth: {
-            user: from.email,
-            pass: from.password
-        }
-    });
-    
+            service: "Gmail",
+            auth: {
+                user: Config.email.address,
+                pass: Config.email.password
+            }
+        });
     me.send = function(options) {
+        function parseEmail(name, email) {
+            if(!name) return email;
+            if(email) return name + " <" + email + ">";
+            return "";
+        }
+        function parseEmails(emails) {
+            var parsed = [];
+            for(var i = 0; i < emails.length; i++) {
+                parsed.push(parseEmail(emails[i].name, emails[i].email));
+            }
+            return parsed;
+        }
         var mailOptions = {
-            from: from.name + " <" + from.email + ">",
-            to: to[0].name + " <" + to[0].email + ">",
-            subject: "Hello",
-            html: "<b>Hello worldgfdsgHTML</b>" // html body
+            from: parseEmail(Config.email.name, Config.email.address),
+            to: parseEmails(options.to),
+            cc: parseEmails(options.cc),
+            subject: options.subject,
+            html: options.message
         };
-        for(var i in options) mailOptions[i] = options[i];
-        smtpTransport.sendMail(mailOptions, function(error, response){
-            if(error) console.error(error);
-            else if(options.callback) options.callback(response);
+        smtpTransport.sendMail(mailOptions, function(error, response) {
+            if(error) console.log("Email Error: " + error);
+            else if(options.callback) options.callback(error, response);
         });
     };
-})();
+};
 
 //Web Pages
 function render(req, res, page, params) {
@@ -340,7 +350,59 @@ server.get('/', function (req, res) {
 
 server.get('/cards', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
-    render(req, res, "cards", {});
+    var price = parseFloat(Config.cards.price).toFixed(2);
+    render(req, res, "cards", {
+        price: price,
+        values: {
+            packs: 1,
+            name: req.session.displayName,
+            address1: "",
+            address2: "",
+            address3: "",
+            email: ""
+        },
+        message: "",
+        success: false
+    });
+});
+server.post('/cards', function (req, res) {
+    if(Auth.require(req, res, Auth.NORMAL)) return;
+    var subject = "Card Order for " + req.body.name;
+    var date = new Date();
+    date = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000 + 1000 * 60 * 60 * 10);
+    var message = [
+        'Date: ' + date.toLocaleDateString() + '<br />',
+        'Number of Packs: ' + req.body.packs + '<br />',
+        'Total Cost: $' + (parseFloat(Config.cards.price) * req.body.packs).toFixed(2) + '<br />',
+        '<h2>Name</h2>' + req.body.name,
+        '<h2>Address Line 1</h2>' + req.body.address1,
+        '<h2>Address Line 2</h2>' + req.body.address2,
+        '<h2>Address Line 3</h2>' + req.body.address3,
+        '<h2>Email</h2>' + req.body.email
+    ].join('');
+    Email.send({
+        to: [{ name: Config.cards.printerName, email: Config.cards.printerEmail }],
+        cc: [{ name: Config.cards.financeName, email: Config.cards.financeEmail }],
+        subject: subject,
+        message: message,
+        callback: function(error, response) {
+            render(req, res, "cards", {
+                price: parseFloat(Config.cards.price).toFixed(2),
+                values: {
+                    packs: req.body.packs,
+                    name: req.body.name,
+                    address1: req.body.address1,
+                    address2: req.body.address2,
+                    address3: req.body.address3,
+                    email: req.body.email
+                },
+                message: error ?
+                    "There was an error placing your order! Please try again or call the office." :
+                    "Your order has been successfully placed!",
+                success: !error
+            });
+        }
+    });
 });
 
 server.get('/config', function(req, res) {
@@ -364,7 +426,6 @@ server.post('/config/update', function(req, res) {
             }
             if(result) done();
             else {
-                console.log("inserting '" + req.body.value + "' to config");
                 db.config.insert(update, {w:1}, function(err, result) {
                     if(err) { console.log(err); res.send(500, err); }
                     else done();
