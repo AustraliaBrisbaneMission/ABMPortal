@@ -42,7 +42,10 @@ block body
               a(href="/area_analysis") Area Analysis
           if auth >= 5
             li
-              a(href="/admin/users") Admin
+              a(href="/admin/users") Users
+          if auth >= 5
+            li
+              a(href="/config") Config
     .main-content
       block content
   footer

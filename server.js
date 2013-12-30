@@ -4,7 +4,7 @@ var express = require('express'),
     crypto = require('crypto'),
     mongodb = require('mongodb'),
     //sql = require('sql'),
-    csv = require('ucsv-1.1.0-min.js'),
+    csv = require('./root/scripts/ucsv-1.1.0-min.js'),
     request = require("request"),
     fs = require("fs"),
     nodemailer = require("nodemailer");
@@ -36,7 +36,6 @@ function dumpConfig() {
         }
     }
 }
-dumpConfig();
 
 //Database Setup
 var db = {};
@@ -70,7 +69,7 @@ db.db.open(function(error, database) {
                 var item = items[i];
                 if(!Config[item.category]) Config[item.category] = {};
                 var category = Config[item.category];
-                
+                category[item.name] = item.value;
             }
         });
     }
@@ -276,26 +275,6 @@ server.get('/email', function (req, res) {
         callback: function(response) { res.send(response); }
     });
 });
-
-server.get('/dumpconfig', function (req, res) {
-    dumpConfig();
-    res.send('Config dumped to console');
-});
-
-server.get('/mongo', function (req, res) {
-    res.send('<form method="POST"><input type="text" name="connect" /><input type="submit" /></form>');
-});
-server.post('/mongo', function (req, res) {
-    var url = req.param('connect');
-    mongodb.MongoClient.connect(url, function(err, database) {
-        if(err) res.send("Error: " + err + " & URL: " + url);
-        else {
-            var users = database.collection('users'), user = "";
-            if(users) user = users.findOne();
-            res.send("[" + url + "] Users = " + users + " & first user = " + user);
-        }
-    });
-});
 // --------------
 
 //Email
@@ -362,6 +341,42 @@ server.get('/', function (req, res) {
 server.get('/cards', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     render(req, res, "cards", {});
+});
+
+server.get('/config', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    render(req, res, "config", { config: Config });
+});
+server.post('/config/update', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var query = { category: req.body.category, name: req.body.name };
+    var update = {
+        category: req.body.category,
+        name: req.body.name,
+        value: req.body.value
+    };
+    db.config.update(query, update, {w:1}, function(err, result) {
+        if(err) { console.log(err); res.send(500, err); }
+        else {
+            function done() {
+                Config[req.body.category][req.body.name] = req.body.value;
+                res.redirect('/config');
+            }
+            if(result) done();
+            else {
+                console.log("inserting '" + req.body.value + "' to config");
+                db.config.insert(update, {w:1}, function(err, result) {
+                    if(err) { console.log(err); res.send(500, err); }
+                    else done();
+                });
+            }
+        }
+    });
+});
+server.get('/config/dump', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    dumpConfig();
+    res.send('Config dumped to console');
 });
 
 server.get('/historical_data', function (req, res) {
@@ -628,6 +643,109 @@ server.get('/imos/indicators.csv', function (req, res) {
             else line[indexes[key]] = value;
         }
         data.push(line);
+    });
+});
+server.get('/imos/indicators2.csv', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var line = [], data = [], headings = [
+        "Date",
+        "Area",
+        "District",
+        "Zone",
+        "Ward",
+        "Missionaries",
+        "Baptized",
+        "Confirmed",
+        "Baptismal Dates",
+        "Investigators at Sacrament",
+        "Member Present Lessons",
+        "Other Lessons",
+        "Progressing Investigators",
+        "Referrals Received",
+        "Referrals Contacted",
+        "New Investigators",
+        "Recent Convert and Less-Active Lessons",
+        "Finding Hours",
+        "Potential Investigators"
+    ];
+    var dbNames = {
+        "date": "Date",
+        "area": "Area",
+        "district": "District",
+        "zone": "Zone",
+        "ward": "Ward",
+        "missionaries": "Missionaries",
+        "baptised": "Baptized",
+        "confirmed": "Confirmed",
+        "baptismalDates": "Baptismal Dates",
+        "sacrament": "Investigators at Sacrament",
+        "memberPresent": "Member Present Lessons",
+        "otherLesson": "Other Lessons",
+        "progressing": "Progressing Investigators",
+        "received": "Referrals Received",
+        "contacted": "Referrals Contacted",
+        "newInvestigators": "New Investigators",
+        "rcla": "Recent Convert and Less-Active Lessons",
+        "finding": "Finding Hours",
+        "potentials": "Potential Investigators"
+    };
+    var indexes = {};
+    for(var key in dbNames) {
+        var name = dbNames[key];
+        for(var i = 0; i < headings.length; i++) {
+            if(headings[i] == name) {
+                indexes[key] = i;
+                break;
+            }
+        }
+    }
+    var cursor = db.indicators.find();
+    cursor.each(function(err, doc) {
+        if(err) { console.log(err); return; }
+        if(!doc) {
+            data.sort(function(a, b) {
+                if(a[0] > b[0]) return 1;
+                if(a[0] < b[0]) return -1;
+                return 0;
+            });
+            data.splice(0, 0, headings);
+            res.set('Content-Type', 'text/csv');
+            res.send(csv.arrayToCsv(data));
+            return;
+        }
+        line = [];
+        for(var i = 0; i < headings.length; i++) line[i] = "";
+        var missionaries;
+        for(var key in doc) {
+            if(key == "_id" || key == "missionaries") continue;
+            var value = doc[key];
+            //TODO: Catch this before INSERTING into the database
+            if(key == "findingPotentials") {
+                var finding = 0, potentials = 0;
+                if(value.length > 1) {
+                    finding = value.substring(0, value.length - 2);
+                    potentials = value.substring(value.length - 2);
+                }
+                line[indexes["finding"]] = finding;
+                line[indexes["potentials"]] = potentials;
+            }
+            else if(key == "date") {
+                var day = value.getDate();
+                if(day < 10) day = "0" + day;
+                var month = value.getMonth() + 1;
+                if(month < 10) month = "0" + month;
+                var year = value.getFullYear();
+                line[indexes["date"]] = year + "-" + month + "-" + day;
+            }
+            else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
+            else line[indexes[key]] = value;
+        }
+        for(var m in doc.missionaries) {
+            var newLine = [];
+            for(var i = 0; i < line.length; i++) newLine[i] = line[i];
+            newLine[indexes["missionaries"]] = doc.missionaries[m];
+            data.push(newLine);
+        }
     });
 });
 server.get('/imos/stake_effectiveness_data.csv', function (req, res) {

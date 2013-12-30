@@ -118,6 +118,12 @@ body h1 {
   margin-bottom: 10px;
   font-size: 1.1em;
 }
+body h2 {
+  font-family: 'Quicksand';
+  margin: 8px 0;
+  font-size: 1em;
+  font-weight: bold;
+}
 body #zones {
   border-collapse: collapse;
   width: 100%;
@@ -253,7 +259,11 @@ header {
   background-repeat: no-repeat;
   background-position: 97% center;
 }
-.main-content #submit {
+.main-content #submitButton {
+  text-align: center;
+  margin-top: 20px;
+}
+.main-content #submitButton #submit {
   -webkit-box-shadow: inset 0px -14px 10px #94a257;
   box-shadow: inset 0px -14px 10px #94a257;
   background-color: #b6c17f;
@@ -266,14 +276,10 @@ header {
   text-decoration: none;
   font-size: 14px;
 }
-.main-content #submit:hover {
+.main-content #submitButton #submit:hover {
   -webkit-box-shadow: inset 0px -14px 10px #b6c17f;
   box-shadow: inset 0px -14px 10px #b6c17f;
   background-color: #94a257;
-}
-.main-content #submitButton {
-  text-align: center;
-  margin-top: 20px;
 }
 .main-content #login {
   margin-left: auto;
