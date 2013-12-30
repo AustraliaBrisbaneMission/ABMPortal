@@ -1,0 +1,24 @@
+extend layout
+
+block head
+  title Configuration Options - #{siteName}
+
+block content
+  h1 ABM Portal Configuration Options
+  each options, category in config
+    h2 #{category}
+    table
+      tr
+        th Option
+        th Value
+        th
+      each value, name in options
+        tr
+          form(method="post" action="/config/update")
+            input(type="hidden" name="category" value="#{category}")
+            input(type="hidden" name="name" value="#{name}")
+            td #{name}
+            td
+              input(type="text" name="value" value="#{value}")
+            td
+              input(type="submit" value="Update")
