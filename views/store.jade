@@ -1,0 +1,50 @@
+extend layout
+
+block head
+  title Missionary Storeroom - #{siteName}
+  script(src="/scripts/store.js" type="text/javascript")
+
+block content
+  h1 Missionary Storeroom
+  form#store(onsubmit="return false")
+    table
+      tr
+        td
+          label(for="missionary") Missionary Placing Order:
+        td
+          input(type="text" name="missionary" id="missionary" value=displayName)
+      tr
+        td
+          label(for="area") Area:
+        td
+          input(type="text" name="area" id="area")
+      tr
+        td
+          label(for="zone") Zone:
+        td
+          input(type="text" name="zone" id="zone")
+      tr
+        td
+        td
+          input(type="submit" value="Place Order")
+    table#items
+      tr
+        th Item
+        th Stock
+        th Price
+        th Quantity
+        th
+      each item in items
+        each details, language in item.languages
+          - var name = (item.name + " (" + language + ")");
+          tr
+            td #{item.name} (#{language})
+            td #{details.stock}
+            td $#{details.price.toFixed(2)}
+            td
+              input(type="text" name="item" id=item._id)
+            td
+              select(id="n"+item._id)
+                option(value=1) Single (1)
+                each amount, quantity in details.quantities
+                  option(value=quantity) #{quantity} (#{amount})
