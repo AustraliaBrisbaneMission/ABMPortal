@@ -23,6 +23,9 @@ var Config = {
         username: process.env.ABMPORTAL_MONGODB_USERNAME || process.env.OPENSHIFT_MONGODB_DB_USERNAME || null,
         password: process.env.ABMPORTAL_MONGODB_PASSWORD || process.env.OPENSHIFT_MONGODB_DB_PASSWORD || null
     },
+    mission: {
+        name: "Australia Brisbane Mission"
+    },
     email: {
         name: "",
         address: "",
@@ -34,6 +37,12 @@ var Config = {
         printerEmail: "",
         financeName: "",
         financeEmail: ""
+    },
+    imos: {
+        startDate: new Date("2013-08-01"),
+        latestDate: new Date("2013-08-01"),
+        latestUpdate: new Date("2013-08-01"),
+        daysUntilNextUpdate: 1
     }
 };
 function dumpConfig() {
@@ -57,6 +66,7 @@ db.db.open(function(error, database) {
         db.indicators = db.database.collection('indicators');
         db.callsheet = db.database.collection('callsheet');
         db.config = db.database.collection('config');
+        db.store = db.database.collection('store');
         areaAnalysisCollections = {
             area: db.database.collection('area'),
             chapel: db.database.collection('chapel'),
@@ -79,6 +89,9 @@ db.db.open(function(error, database) {
                 category[item.name] = item.value;
             }
             Email = new Emailer();
+        });
+        db.indicators.findOne({ $query: {}, $orderby: { date: -1 }}, function(err, result) {
+            if(result) Config.imos.latestDate = new Date(result.date);
         });
     }
     if(Config.mongodb.username) {
@@ -134,7 +147,8 @@ var Auth = {
         */
         
         function done(success) {
-            if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in!");
+            //TODO: Delete SSO logging
+            if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in! SSO=" + req.session.sso);
             callback(success);
         }
         
@@ -147,6 +161,7 @@ var Auth = {
             if(err) { console.log(err); done(false); return; }
             if(item) {
                 req.session.sso = null;
+                req.session.missionary = false;
                 req.session.username = item.username;
                 req.session.prefix = "";
                 req.session.displayName = item.username;
@@ -167,43 +182,47 @@ var Auth = {
                 };
                 request(data, function(error, response, body) {
                     if(error) {
-                        console.log("SSO Request Error for [" + username + "]: " +
-                                    error);
+                        console.log("SSO Request Error for [" + username + "]: " + error);
                     }
                     else if(response.statusCode != 200) {
                         console.log("SSO Status Error for [" + username + "]: " +
                                     response.statusCode);
                     }
                     else {
-                        var cookies = response.headers["set-cookie"], token = "";
+                        var cookies = response.headers["set-cookie"];
                         if(!cookies || !cookies.length) {
                             console.log("SSO Cookie Error for [" + username + "]: " +
                                         "No cookies received");
                         }
                         else {
                             req.session.sso = cookies[0].split(';')[0].split('=')[1];
+                            //req.session.sso = "mI5jGtDle7ygVGheQieD9rTmJd3G1qgYCWdZeQxT%2FNBdGV4XZNfbivm9ahxygZH3uXD8VTOGh%2B01GIYL6PWjLT%2FT%2Boz5fZK6aQcuEd04XYAZ00Qr61rVMyY3%2FNPxBc%2B7oUzR4exo02owV2Nk2Ed%2BiCwG%2FyJ%2BCCq%2Bk9BhXNqHRHCXxQyogcAiWfewXtuH00EUkapfdDWrcWvT9wvULixHDLc5atrI8W%2F%2B6fbZIKal1XWW%2Bjd%2FNW0KOYiBo%2BsuvwXcl35WxYWXlwRfv1R%2BiLTMQSMpDwvJmHOAaLaIi9mmQFTwy6cbyzB8JLgWULPJVrPd4%2B%2BvDuF%2FXf2vdQXEJDoP%2Bpb7L5LRLeSRkuqH4YSwARc%3D";
                             req.session.username = username;
+                            req.session.missionary = false;
+                            req.session.imos = false;
                             req.session.prefix = "";
                             req.session.displayName = username;
                             req.session.fullName = username;
                             req.session.auth = Auth.OTHER;
+                            //Get missionary information
                             Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-assignment", function(result) {
-                                if(!result.fullName) {
-                                    Auth.logout(req);
-                                    done(false);
-                                }
-                                else if(result.asgLocName == "Australia Brisbane Mission") {
+                                if(result.asgLocName == Config.mission.name) {
+                                    req.session.missionary = true;
                                     req.session.prefix = result.msnyIsElder ? "Elder " : "Sister ";
                                     req.session.displayName = req.session.prefix + result.lastName;
                                     req.session.fullName = result.fullName;
                                     req.session.auth = Auth.NORMAL;
-                                    done(true);
                                 }
-                                else {
-                                    req.session.displayName = result.fullName;
-                                    done(true);
-                                }
+                                else if(result.fullName) req.session.displayName = result.fullName;
+                                done(true);
                             });
+                            //Update IMOS information if possible
+                            var now = new Date();
+                            var updateTime = new Date(Config.imos.latestUpdate);
+                            //Update if over a day has passed since last update
+                            updateTime.setDate(updateTime.getDate() + Config.imos.daysUntilNextUpdate);
+                            console.log("Now = " + now + " & updateTime = " + updateTime);
+                            if(now > updateTime) Auth.updateIndicators(req);
                             return;
                         }
                     }
@@ -218,10 +237,12 @@ var Auth = {
     logout: function(req) {
         req.session.sso = null;
         req.session.username = null;
+        req.session.missionary = null;
         req.session.prefix = null;
         req.session.displayName = null;
         req.session.fullName = null;
         req.session.auth = Auth.NONE;
+        req.session.imos = null;
     },
     require: function(req, res, auth) {
         if(req.session.auth && req.session.auth >= auth) return false;
@@ -249,8 +270,139 @@ var Auth = {
             var status = response.statusCode;
             if(error) callback("Error Connecting to Server: " + error);
             else if(status != 200) callback("Status Error: " + status);
+            //TODO: Refresh token when necessary
+            //else callback(JSON.parse(body));
             else try { callback(JSON.parse(body)); }
             catch(error) { callback("JSON Error: " + body); }
+        });
+    },
+    //Set 'date' to extract indicators from the previous to 'date'
+    updateIndicators: function(req, date, all) {
+        if(!date) date = new Date();
+        //Convert the date to the Monday after the reported week
+        date.setDate(date.getDate() - (date.getDay() || 7) + 1);
+        //Do not sync if there are indicators in the old format
+        console.log("date = " + date + " & startDate = " + Config.imos.startDate + " & latestDate = " + Config.imos.latestDate);
+        if(date < Config.imos.startDate) {
+            console.log("Reached IMOS start date while updating indicators. Stopping...");
+            return;
+        }
+        if(!all && date < Config.imos.latestDate) {
+            console.log("Reached latest indicators date. Stopping...");
+            return;
+        }
+        var formattedDate = formatDate(date);
+        //IMOS gets reports for the week that contains the date so minus one week
+        var weekAgo = new Date(date);
+        weekAgo.setDate(date.getDate() - 7);
+        var imosDate = formatDate(weekAgo);
+        var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + imosDate + "/" + imosDate + "/mission/14292";
+        Auth.sso(req, url, function(result) {
+            //Return if the user does not have authority
+            if(!result || !result.entity) {
+                console.log("User does not have IMOS access. Stopping...");
+                console.log("Result = " + result + " & url = " + url);
+                return;
+            }
+            console.log("Getting indicators for " + formattedDate + "...");
+            //Get key indicator IDs
+            var logs = { "Items updated:": 0 };
+            var indicatorNames = {
+                "10": "baptised",
+                "20": "confirmed",
+                "30": "baptismalDates",
+                "40": "sacrament",
+                "50": "memberPresent",
+                "60": "otherLesson",
+                "70": "progressing",
+                "80": "received",
+                "90": "contacted",
+                "100": "newInvestigators",
+                "110": "rcla",
+                "2302": "findingPotentials"
+            };
+            for(var i = 0; i < result.keyIndicators.length; i++) {
+                var indicator = result.keyIndicators[i];
+                var id = indicator.id;
+                if(indicatorNames[id]) continue;
+                var name = indicator.shortName || indicator.name;
+                indicatorNames[id] = name;
+            }
+            //Get the indicators
+            var zones = result.entity.entities;
+            for(var a = 0; a < zones.length; a++) {
+                var zone = zones[a];
+                var districts = zone.entities;
+                for(var b = 0; b < districts.length; b++) {
+                    var district = districts[b];
+                    var areas = district.entities;
+                    for(var c = 0; c < areas.length; c++) {
+                        var area = areas[c];
+                        if(!area.entities) continue;
+                        var d = area.entities.length - 1;
+                        if(d < 0) continue;
+                        var report = area.entities[d];
+                        var indicators = report.kiData;
+                        var item = {};
+                        //Check that the report contains any actuals
+                        var valid = false;
+                        if(!indicators) continue;
+                        for(var e = 0; e < indicators.length; e++) {
+                            var indicator = indicators[e];
+                            var actual = indicator.actual;
+                            if(actual === undefined) continue;
+                            var id = indicator.id;
+                            //Split the 'Finding / Potentials' indicator
+                            if(id == "2302") {
+                                actual = splitFindingPotentials(actual);
+                                item.finding = actual.finding;
+                                item.potentials = actual.potentials;
+                            }
+                            else item[indicatorNames[id]] = actual;
+                            valid = true;
+                        }
+                        if(!valid) continue;
+                        //Add information now that we know it is valid
+                        item.zone = zone.name;
+                        item.district = district.name;
+                        item.area = area.name;
+                        //Set date as the Monday after the reported week
+                        item.date = date;
+                        //Add ward ('Chermside Ward' to 'Chermside')
+                        var ward = report.name;
+                        ward = ward.substring(0, ward.lastIndexOf(' '));
+                        item.ward = ward;
+                        //Add missionaries
+                        item.missionaries = [];
+                        if(!area.missionaries) continue;
+                        for(var d = 0; d < area.missionaries.length; d++) {
+                            var missionary = area.missionaries[d];
+                            var firstName = missionary.firstName;
+                            var middleName = missionary.middleName;
+                            var lastName = missionary.lastName;
+                            var name = lastName + ", " + firstName;
+                            if(middleName) name += " " + middleName;
+                            item.missionaries.push(name);
+                        }
+                        //Save the item
+                        var query = { date: formattedDate, area: area.name };
+                        db.indicators.update(query, item, { upsert: true }, doNothing);
+                        logs["Items updated:"]++;
+                    }
+                }
+            }
+            req.session.imos = true;
+            //Sync indicators for last week
+            setTimeout(function() { Auth.updateIndicators(req, weekAgo); }, 10000);
+            //Update latest update
+            var date = new Date();
+            var query = { category: "imos", name: "latestUpdate" };
+            db.config.update(query, { date: date }, { upsert: true }, doNothing);
+            Config.imos.latestUpdate = date;
+            //Show the logs
+            for(var message in logs) {
+                console.log(message + " (x" + logs[message] + ")");
+            }
         });
     }
 };
@@ -277,10 +429,23 @@ server.get('/noauth', function (req, res) {
     render(req, res, "noauth", {});
 });
 
+//TODO: Remove these before deploying...
 // --- TESTING ---
-server.get('/email', function (req, res) {
-    Email.send({
-        callback: function(response) { res.send(response); }
+server.get('/sso', function (req, res) {
+    res.send("Your SSO is: " + req.session.sso + '<form method="POST"><input type="text" name="sso" /><input type="submit"></form>');
+});
+server.post('/sso', function (req, res) {
+    req.session.sso = req.body.sso;
+    res.send("Your SSO is now set to: " + req.session.sso);
+});
+server.get('/update_indicators', function (req, res) {
+    Auth.updateIndicators();
+});
+server.get('/update_indicators2', function (req, res) {
+    var formattedDate = "2013-10-14";
+    var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + formattedDate + "/" + formattedDate + "/mission/14292";
+    Auth.sso(req, url, function(result) {
+        console.log("Indicators: " + result);
     });
 });
 // --------------
@@ -355,7 +520,7 @@ server.get('/cards', function (req, res) {
         price: price,
         values: {
             packs: 1,
-            name: req.session.displayName,
+            name: req.session.prefix + req.session.fullName,
             address1: "",
             address2: "",
             address3: "",
@@ -372,6 +537,7 @@ server.post('/cards', function (req, res) {
     date = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000 + 1000 * 60 * 60 * 10);
     var message = [
         'Date: ' + date.toLocaleDateString() + '<br />',
+        'User: ' + req.session.displayName + ' (' + req.session.username + ')<br />',
         'Number of Packs: ' + req.body.packs + '<br />',
         'Total Cost: $' + (parseFloat(Config.cards.price) * req.body.packs).toFixed(2) + '<br />',
         '<h2>Name</h2>' + req.body.name,
@@ -405,6 +571,29 @@ server.post('/cards', function (req, res) {
     });
 });
 
+server.get('/store', function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL)) return;
+    render(req, res, "store", {});
+});
+server.post('/store/order', function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL)) return;
+    var data = {
+        user: req.session.displayName + " (" + req.session.username + ")",
+        missionary: req.body.missionary,
+        area: req.body.area,
+        zone: req.body.zone,
+        items: req.body.items
+    };
+    db.orders.insert(data, {w:1}, dbCallback);
+});
+server.get('/store/items', function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL)) return;
+    db.store.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); }
+        else res.send(items);
+    });
+});
+
 server.get('/config', function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     render(req, res, "config", { config: Config });
@@ -417,20 +606,11 @@ server.post('/config/update', function(req, res) {
         name: req.body.name,
         value: req.body.value
     };
-    db.config.update(query, update, {w:1}, function(err, result) {
+    db.config.update(query, update, { upsert: true }, function(err, result) {
         if(err) { console.log(err); res.send(500, err); }
         else {
-            function done() {
-                Config[req.body.category][req.body.name] = req.body.value;
-                res.redirect('/config');
-            }
-            if(result) done();
-            else {
-                db.config.insert(update, {w:1}, function(err, result) {
-                    if(err) { console.log(err); res.send(500, err); }
-                    else done();
-                });
-            }
+            Config[req.body.category][req.body.name] = req.body.value;
+            res.redirect('/config');
         }
     });
 });
@@ -776,7 +956,6 @@ server.get('/imos/indicators2.csv', function (req, res) {
         }
         line = [];
         for(var i = 0; i < headings.length; i++) line[i] = "";
-        var missionaries;
         for(var key in doc) {
             if(key == "_id" || key == "missionaries") continue;
             var value = doc[key];
@@ -1091,6 +1270,24 @@ server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
     console.log("ABM Admin Website running...");
 });
 
+//-------------
+function splitFindingPotentials(value) {
+    var finding = 0, potentials = 0;
+    if(value.length > 1) {
+        finding = value.substring(0, value.length - 2);
+        potentials = value.substring(value.length - 2);
+    }
+    return { finding: finding, potentials: potentials };
+}
+function formatDate(date) {
+    var year = date.getFullYear();
+    var month = date.getMonth() + 1;
+    if(month < 10) month = "0" + month;
+    var day = date.getDate();
+    if(day < 10) day = "0" + day;
+    return year + "-" + month + "-" + day;
+}
+function doNothing() {}
 //-------------
 function md5cycle(x, k) {
 var a = x[0], b = x[1], c = x[2], d = x[3];

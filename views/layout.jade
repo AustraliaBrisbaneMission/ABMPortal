@@ -3,6 +3,7 @@ extend essentials
 block header
   link(rel="icon" type="image/png" href="/stylesheets/images/icon.png")
   link(rel='stylesheet' href='/stylesheets/style.css')
+  script(type="text/javascript" src="/scripts/abm_utils.js")
   block head
 
 block body
@@ -22,6 +23,9 @@ block body
           if auth >= 2
             li
               a(href="/cards") Order Cards
+          if auth >= 5
+            li
+              a(href="/store") Storeroom
           if auth >= 4
             li
               a(href="/recommendations") Submit Transfer Recommendations

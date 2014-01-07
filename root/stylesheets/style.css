@@ -165,6 +165,24 @@ header {
   margin-left: 200px;
   font-size: 0.9em;
 }
+.main-content #store #items {
+  border-collapse: collapse;
+}
+.main-content #store #items th {
+  font-weight: bold;
+  padding: 2px 8px;
+  border: 1px solid #999;
+}
+.main-content #store #items td {
+  border: 1px solid #999;
+  padding: 2px 4px;
+}
+.main-content #store #items td input {
+  width: 60px;
+}
+.main-content #store #items td select {
+  width: 100px;
+}
 .main-content .rMissionary,
 .main-content .rZone,
 .main-content .rArea,
