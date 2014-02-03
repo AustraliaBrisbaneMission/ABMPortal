@@ -1,14 +1,14 @@
 {
-  "name": "ABMPortal",
-  "version": "0.6.1",
-  "private": "true",
-  "dependencies": {
-    "express": "*",
-    "jade": "*",
-    "stylus": "*",
-    "nib": "*",
-    "mongodb": "*",
-    "request": "*",
-    "nodemailer": "*"
-  }
+    "name": "ABMPortal",
+    "version": "0.6.1",
+    "private": "true",
+    "dependencies": {
+        "express": "*",
+        "jade": "*",
+        "stylus": "*",
+        "nib": "*",
+        "mongodb": "*",
+        "request": "*",
+        "nodemailer": "*"
+    }
 }

@@ -168,6 +168,7 @@ var Auth = {
         
         function done(success) {
             if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in!");
+            else Auth.logout(req);
             callback(success);
         }
         
@@ -241,6 +242,7 @@ var Auth = {
                                         var query = { fullName: req.session.fullName };
                                         db.missionary.findOne(query, function(error, record) {
                                             if(error) { console.log(error); return; }
+                                            if(!record) { done(false); return; }
                                             var auth = Auth.NORMAL;
                                             if(adminAccess) auth = Auth.ADMIN;
                                             else if(record.position == "ASSISTANT") auth = Auth.ADMIN;
@@ -268,9 +270,6 @@ var Auth = {
                             return;
                         }
                     }
-                    
-                    //Login fail
-                    Auth.logout(req);
                     done(false);
                 });
             }
