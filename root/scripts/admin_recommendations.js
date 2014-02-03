@@ -59,7 +59,7 @@ function render(filter) {
             "November",
             "December"
         ];
-        date = new Date(date);
+        date = $.parseDate(date);
         var day = days[date.getDay()];
         var month = months[date.getMonth()];
         var year = date.getFullYear();
@@ -111,60 +111,55 @@ function render(filter) {
     }, true);
 }
 
-window.addEventListener("load", function() {
-    $.ajax({
-        type: "GET",
-        url: "/admin/recommendations/get",
-        success: function(response) {
-            response.sort(function(a, b) {
-                if(a.date > b.date) return 1;
-                if(a.date < b.date) return -1;
-                return 0;
-            });
-            filters["(All)"] = response;
-            
-            var select = document.createElement('SELECT');
-            select.id = "filter";
-            var label = document.createElement('LABEL');
-            label.textContent = "Transfer:";
-            label.setAttribute("for", "filter");
-            var option = document.createElement('OPTION');
-            option.value = option.textContent = "(All)";
-            select.appendChild(option);
-            var options = [];
-            
-            var firstDate = new Date("2013-11-18");
-            var latestDate = firstDate;
-            for(var i = 0; i < response.length; i++) {
-                var date = new Date(response[i].date);
-                var filterName;
-                while(latestDate < date) {
-                    filterName = latestDate.toLocaleDateString();
-                    latestDate.setDate(latestDate.getDate() + 7 * 6);
-                    filterName += " - " + latestDate.toLocaleDateString();
-                    filters[filterName] = [];
-                    var option = document.createElement('OPTION');
-                    option.value = option.textContent = filterName;
-                    options.push(option);
-                }
-                filters[filterName].push(response[i]);
+window.on("load", function() {
+    $.get("/admin/recommendations/get", function(response) {
+        response.sort(function(a, b) {
+            if(a.date > b.date) return 1;
+            if(a.date < b.date) return -1;
+            return 0;
+        });
+        filters["(All)"] = response;
+        
+        var select = document.createElement('SELECT');
+        select.id = "filter";
+        var label = document.createElement('LABEL');
+        label.textContent = "Transfer:";
+        label.setAttribute("for", "filter");
+        var option = document.createElement('OPTION');
+        option.value = option.textContent = "(All)";
+        select.appendChild(option);
+        var options = [];
+        
+        var firstDate = new Date("2013-11-18");
+        var latestDate = firstDate;
+        for(var i = 0; i < response.length; i++) {
+            var date = $.parseDate(response[i].date);
+            var filterName;
+            while(latestDate < date) {
+                filterName = latestDate.toLocaleDateString();
+                latestDate.setDate(latestDate.getDate() + 7 * 6);
+                filterName += " - " + latestDate.toLocaleDateString();
+                filters[filterName] = [];
+                var option = document.createElement('OPTION');
+                option.value = option.textContent = filterName;
+                options.push(option);
             }
-            var start = options.length - 1;
-            for(var i = start; i >= 0; i--) {
-                if(i == start) {
-                    options[i].selected = true;
-                    render(options[i].value);
-                }
-                select.appendChild(options[i]);
-            }
-            
-            select.addEventListener("change", function(e) {
-                render(e.target.value);
-            }, false);
-            var filterBox = document.getElementById('filter_box');
-            filterBox.appendChild(label);
-            filterBox.appendChild(select);
-            
+            filters[filterName].push(response[i]);
         }
+        var start = options.length - 1;
+        for(var i = start; i >= 0; i--) {
+            if(i == start) {
+                options[i].selected = true;
+                render(options[i].value);
+            }
+            select.appendChild(options[i]);
+        }
+        
+        select.addEventListener("change", function(e) {
+            render(e.target.value);
+        }, false);
+        var filterBox = document.getElementById('filter_box');
+        filterBox.appendChild(label);
+        filterBox.appendChild(select);
     });
-}, false);
+});

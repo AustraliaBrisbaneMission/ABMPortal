@@ -71,7 +71,36 @@ header
 .container
   margin 32px
   overflow hidden
-  
+
+.yearDiv div
+  padding-left 16px
+
+.standardCategory
+  padding-left 16px
+  text-align left
+  input
+    width 75%
+    font-size 14px
+    margin 2px
+  .headingInput
+    font-size 18px
+    font-weight bold
+    margin-top 16px
+    padding 4px 8px
+  a
+    font-size 10px
+    text-decoration none
+    color #999
+    padding 8px
+  a:hover
+    color #33f
+
+.blueLayer
+  border-left 4px #66f solid
+  padding 2px 2px 2px 12px
+  background-color #ccc
+  margin 8px 4px
+
 #user
   float right
   padding 8px
@@ -83,13 +112,44 @@ header
   margin-left 200px
   font-size 0.9em
   
+  th
+    font-weight bold
+  
+  .missionary td, .missionary th
+    padding 2px 4px
+  
+  .textCenter
+    text-align center
+  
+  .standardCategory
+    //text-align center
+    font-weight bold
+  
   #store
+    #order
+      border-collapse collapse
+      tr
+        border 1px solid #999
+      td
+        padding 2px 4px
+        .language
+          width 150px
+        .amount
+          width 50px
+        .quantity
+          width 100px
     #items
       border-collapse collapse
       th
         font-weight bold
         padding 2px 8px
         border 1px solid #999
+      .item
+        cursor pointer
+      .item:hover
+        background-color #999
+      .ordered
+        color #999
       td
         border 1px solid #999
         padding 2px 4px
@@ -116,6 +176,8 @@ header
   
   .rDate
     color #393
+  
+  #result_box
     h3
       font-weight bold
     .clickable:hover

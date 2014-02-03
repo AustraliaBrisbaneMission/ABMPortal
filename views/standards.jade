@@ -1,0 +1,18 @@
+extend layout
+
+block head
+  title Standards of Excellence - #{siteName}
+  script(src="/scripts/standards.js" type="text/javascript")
+
+block content
+  div#header
+    h1 Standards of Excellence
+    span#message
+  form#standards
+    div#result_box
+      p Loading...
+    input#submitButton(type="submit" style="display:none")
+  if admin
+    form#adminForm
+      div#adminCategories
+      input#submitButton(type="submit" value="Save Standards")

@@ -2,17 +2,12 @@ var Form = function(properties) {
     var form = this;
     Form.forms.push(form);
     form.name = properties.name;
-    form.displayName = capitalise(form.name);
+    form.displayName = properties.displayName || form.name;
     form.fields = properties.fields;
     form.mapElements = properties.mapElements || [];
     form.noDisplay = properties.noDisplay || false;
     form.noDb = properties.noDb || false;
     form.items = [];
-    form.editing = {
-        data: {},
-        action: null,
-        callback: null
-    };
     form.ready = false;
     form.currentItem = null;
     form.currentItemIndex = 0;
@@ -24,21 +19,11 @@ var Form = function(properties) {
         if(properties.onClose) properties.onClose(e);
         if(properties.onAllClose) properties.onAllClose(e);
     };
-    form.onCreate = properties.onCreate || function() {};
-    form.onCreateCancel = function(e) {
-        if(properties.onCreateCancel) properties.onCreateCancel(e);
-        if(properties.onAllClose) properties.onAllClose(e);
-    };
-    form.onEdit = properties.onEdit || function() {};
-    form.onEditCancel = function(e) {
-        if(properties.onEditCancel) properties.onEditCancel(e);
-        if(properties.onAllClose) properties.onAllClose(e);
-    };
-    form.onRemove = properties.onRemove || function() {};
     form.onInitialise = properties.onInitialise || function(items) { return items; };
     form.onItemInitialise = properties.onItemInitialise || function(item) { return item; };
     form.onShow = properties.onShow || function() {};
     form.onHide = properties.onHide || function() {};
+    form.onUpload = properties.onUpload;
     if(properties.variables) {
         $.each(properties.variables, function(name, value) {
             form[name] = value;
@@ -48,23 +33,31 @@ var Form = function(properties) {
         if(Form.openForm && Form.openForm != form) Form.openForm.destroy();
         Form.openForm = form;
         if(!form.visible) form.show();
-        var html = "<table>", item, value;
+        var item;
         if(form.state == "open") form.onClose();
-        else if(form.state == "edit") form.onEditCancel();
-        else if(form.state == "create") form.onCreateCancel();
         if(itemIndex === undefined) {
             item = form.currentItem = null;
             form.currentItemIndex = 0;
-            form.editing = { data: {}, action: null, callback: null };
         }
         else {
             if(isNaN(itemIndex)) {
-                $.each(form.items, function(i, item) {
-                    if(item == itemIndex) {
-                        itemIndex = i;
-                        return false;
+                var items = form.items;
+                if(typeof itemIndex == "string") {
+                    for(var i = 0, len = items.length; i < len; i++) {
+                        if(items[i].name == itemIndex) {
+                            itemIndex = i;
+                            break;
+                        }
                     }
-                })
+                }
+                else {
+                    for(var i = 0, len = items.length; i < len; i++) {
+                        if(items[i] == itemIndex) {
+                            itemIndex = i;
+                            break;
+                        }
+                    }
+                }
             }
             item = form.currentItem = form.items[itemIndex];
             form.currentItemIndex = itemIndex;
@@ -72,30 +65,96 @@ var Form = function(properties) {
             if(cluster) cluster.calculate();
         }
         map.info.close();
+        //if(form.render)
         if(!form.noDisplay) Form.toggle(true);
         if(form.noDisplay || form.noDb) return;
-        $.each(form.fields, function(name, type) {
-            if(type.noDisplay) return;
-            value = item ? item[name] : "";
-            html += '<tr><td>' + capitalise(name) + ':</td>' +
-                '<td id="' + form.name + '_' + name + '_field">' +
-                form.getFieldHTML(name) + '</td></tr>';
+        //Display the table
+        var table = document.createElement("TABLE");
+        table.className = "item";
+        $.each(form.fields, function(fieldName, field) {
+            if(field.noDisplay) return;
+            var value = "";
+            if(item) {
+                value = item[fieldName];
+                if(form.fields[fieldName].render) {
+                    value = form.fields[fieldName].render(value);
+                }
+            }
+            var row = document.createElement("TR");
+            var cell = document.createElement("TD");
+            var displayName = field.displayName || fieldName;
+            cell.textContent = displayName + ": ";
+            row.appendChild(cell);
+            cell = document.createElement("TD");
+            if(typeof value == "string") cell.textContent = value;
+            else if(value) cell.appendChild(value);
+            else cell.textContent = "";
+            row.appendChild(cell);
+            table.appendChild(row);
         });
-        html += '<tr><td></td><td id="buttons"></td></tr>';
-        $('#form_open').html(html + '</table>');
-        if(item) {
-            $('#buttons').append(
-                $('<input type="button" value="Edit ' + form.displayName + '" />').click(form.edit),
-                $('<input type="button" value="Close" />').click(form.close)
-            );
-        }
-        else {
-            $('#buttons').append(
-                $('<input type="button" value="New ' + form.displayName + '" />').click(form.create)
-            );
+        document.getElementById("form_open").innerHTML = "";
+        document.getElementById("form_open").appendChild(table);
+        //Add upload dialog if necessary
+        if(form.onUpload && User.auth >= Auth.ADMIN) {
+            var upload = document.createElement("INPUT");
+            upload.type = "file";
+            upload.setAttribute("Accept", ".csv");
+            upload.addEventListener("change", uploaded, false);
+            document.getElementById("form_open").appendChild(upload);
+            
+            var download = document.createElement("A");
+            download.href = "/area_analysis/" + form.name + "_mapdata.csv";
+            download.textContent = "Download " + form.displayName + " Data";
+            document.getElementById("form_open").appendChild(download);
         }
         form.state = "open";
     };
+    var uploadSpan = document.createElement("SPAN");
+    function uploaded(e) {
+        var file = e.target.files[0], reader = new FileReader();
+        reader.onload = function(e) {
+            //CSV format
+            var text = e.target.result.replace(new RegExp(String.fromCharCode(65533), "g"), "");
+            var lines = CSV.csvToArray(text);
+            lines.splice(0, 1);
+            form.onUpload(lines, insert);
+            /*
+            //Excel format (BUGGY)
+            var cfb = XLS.CFB.read(e.target.result, { type: "binary" });
+            var workbook = XLS.parse_xlscfb(cfb);
+            for(var sheet in workbook) {
+                var result = XLS.utils.sheet_to_row_object_array(workbook.Sheets[sheet]);
+                if(result.length) {
+                    form.onUpload(result);
+                    return;
+                }
+            }
+            */
+        };
+        reader.readAsText(file);
+        //Create status message
+        uploadSpan.textContent = "Uploading...";
+        this.parentNode.appendChild(uploadSpan);
+        this.remove();
+    }
+    function insert(data) {
+        console.log(data);
+        $.post("/area_analysis/db", {
+            action: "removeall",
+            collection: form.name
+        }, function(result) {
+            $.post("/area_analysis/db", {
+                action: "insert",
+                collection: form.name,
+                data: data
+            }, function(result) {
+                form.items = [];
+                form.initialise();
+                document.getElementById("form_open").appendChild(uploadSpan);
+                uploadSpan.textContent = "Successfully uploaded!";
+            });
+        });
+    }
     form.destroy = function() {
         Form.currentForm.innerHTML = "";
         form.onClose();
@@ -105,92 +164,8 @@ var Form = function(properties) {
         form.destroy();
         form.open();
     };
-    form.create = function() {
-        form.editing = { data: {}, action: null, callback: null };
-        $.each(form.fields, function(name, type) {
-            form.editing.data[name] = type.defaultValue;
-        });
-        form.onCreate();
-        $.each(form.fields, function(name, type) {
-            if(type.noDisplay) return;
-            $('#' + form.name + '_' + name).attr({ disabled: false });
-            $('#buttons').empty().append(
-                $('<input type="button" value="Add ' + form.displayName + '" />').click(form.add),
-                $('<input type="button" value="Cancel" />').click(form.open)
-            );
-        });
-        form.state = "create";
-    };
-    form.add = function() {
-        form.save("insert", function(response) {
-            form.items.push(form.onItemInitialise(response[0]));
-            form.renderList();
-            form.open(form.items.length - 1);
-        });
-    };
-    form.edit = function() {
-        form.onEdit();
-        $.each(form.fields, function(name, type) {
-            if(type.noDisplay) return;
-            $('#' + form.name + '_' + name).attr({ disabled: false });
-            $('#buttons').empty().append(
-                $('<input type="button" value="Update ' + form.displayName + '" />').click(form.update),
-                $('<input type="button" value="Cancel" />').click(form.reset),
-                $('<input type="button" value="DELETE" style="float:right" />').click(form.remove)
-            );
-        });
-        form.state = "edit";
-    };
-    form.update = function() {
-        form.save("update", function(response) {
-            form.items.splice(form.currentItemIndex, 1, form.onItemInitialise(response[0]));
-            form.renderList();
-            form.open(form.currentItemIndex);
-        });
-    };
-    form.save = function(action, callback) {
-        form.editing = {
-            data: {},
-            action: action,
-            callback: callback
-        };
-        form.state = "waiting";
-        $.each(form.fields, function(name, type) {
-            if(type.getValueToSave) type.getValueToSave();
-            else form.setValueToSave(name, $('#' + form.name + '_' + name).val());
-        });
-    };
     form.reset = function() {
         form.open(form.currentItemIndex);
-    };
-    form.remove = function() {
-        var text = "Are you sure you want to delete " +
-            form.currentItem.name + "?";
-        if(!confirm(text)) return;
-        $.ajax({
-            type: "POST",
-            url: "/area_analysis/db",
-            data: { action: "remove", collection: form.name, id: form.currentItem._id },
-            success: function(response) {
-                form.onRemove();
-                form.items.splice(form.currentItemIndex, 1);
-                form.renderList();
-                form.open();
-            }
-        });
-        $('#buttons').html("Deleting...");
-    };
-    form.getFieldHTML = function(fieldName) {
-        var field = form.fields[fieldName];
-        if(field.render) return field.render();
-        else {
-            return '<input type="' + field + '" id="' + form.name + '_' + fieldName + '" ' +
-                (form.currentItem ? 'value="' + form.currentItem[fieldName] + '" ' : '') +
-                'disabled="true" />';
-        }
-    };
-    form.updateField = function(fieldName) {
-        $('#' + form.name + '_' + fieldName + '_field').html(form.getFieldHTML(fieldName));
     };
     form.renderList = function() {
         form.list.innerHTML = "";
@@ -205,6 +180,7 @@ var Form = function(properties) {
         });
     };
     form.show = function() {
+        if(form.noDisplay) return;
         for(var i = 0; i < form.mapElements.length; i++) {
             form.mapElements[i].show();
         }
@@ -213,6 +189,7 @@ var Form = function(properties) {
         form.onShow();
     };
     form.hide = function() {
+        if(form.noDisplay) return;
         for(var i = 0; i < form.mapElements.length; i++) {
             form.mapElements[i].hide();
         }
@@ -229,10 +206,11 @@ var Form = function(properties) {
                 if(a.name < b.name) return -1;
                 return 0;
             });
-            var items = form.onInitialise(response);
+            var items = form.items = response;
+            form.onInitialise(items);
             $.each(items, function(index, item) {
                 item.form = form;
-                form.items.push(form.onItemInitialise(item));
+                form.onItemInitialise(item);
             });
             if(cluster) cluster.calculate();
             form.renderList();
@@ -283,33 +261,6 @@ var Form = function(properties) {
             e.stopPropagation();
         }, false);
         if(form.noDb) success([]);
-    };
-    form.setValueToSave = function(field, value) {
-        form.editing.data[field] = value;
-        if(!form.editing.action) return;
-        if(form.state == "waiting") form.checkFields();
-    };
-    form.checkFields = function() {
-        var finished = true;
-        $.each(form.fields, function(field, type) {
-            if(form.editing.data[field] === undefined) {
-                finished = false;
-                return false;
-            }
-        });
-        if(!finished) return;
-        var data = {
-            collection: form.name,
-            action: form.editing.action,
-            data: form.editing.data,
-            id: form.currentItem ? form.currentItem._id : null
-        };
-        $.ajax({
-            type: "POST",
-            url: "/area_analysis/db",
-            data: data,
-            success: form.editing.callback
-        });
     };
 };
 Form.forms = [];

@@ -33,37 +33,48 @@ var Cluster = function(map) {
             //Get each form item
             for(var b = 0; b < form.items.length; b++) {
                 var item = form.items[b];
-                if(!item.marker) continue;
-                //Check if the marker is in any cluster boxes
-                var position = item.marker.getPosition();
-                var x = position[0], y = position[1];
-                var inBox = false;
-                if(form.currentItem != item) {
-                    for(var c = 0; c < boxes.length; c++) {
-                        var box = boxes[c];
-                        var x1 = box.x1, x2 = box.x2, y1 = box.y1, y2 = box.y2;
-                        //If it is in the box, add the item
-                        if(x > x1 && x < x2 && y > y1 && y < y2) {
-                            inBox = true;
-                            box.items.push(item);
-                            item.marker.hide();
-                            break;
+                if(item.marker) {
+                    //Check if the marker is in any cluster boxes
+                    var position = item.marker.getPosition();
+                    var x = position[0], y = position[1];
+                    var inBox = false;
+                    if(form.currentItem != item) {
+                        for(var c = 0; c < boxes.length; c++) {
+                            var box = boxes[c];
+                            var x1 = box.x1, x2 = box.x2, y1 = box.y1, y2 = box.y2;
+                            //If it is in the box, add the item
+                            if(x > x1 && x < x2 && y > y1 && y < y2) {
+                                inBox = true;
+                                box.items.push(item);
+                                item.marker.hide();
+                                break;
+                            }
                         }
                     }
+                    //If it is not in the box, make a new box
+                    if(!inBox) {
+                        boxes.push({
+                            items: [ item ],
+                            label: null,
+                            x: x,
+                            y: y,
+                            x1: x - boxSize / 2,
+                            x2: x + boxSize / 2,
+                            y1: y - boxSize / 2,
+                            y2: y + boxSize / 2
+                        });
+                        item.marker.show();
+                    }
                 }
-                //If it is not in the box, make a new box
-                if(!inBox) {
-                    boxes.push({
-                        items: [ item ],
-                        label: null,
-                        x: x,
-                        y: y,
-                        x1: x - boxSize / 2,
-                        x2: x + boxSize / 2,
-                        y1: y - boxSize / 2,
-                        y2: y + boxSize / 2
-                    });
-                    item.marker.show();
+                if(item.poly && item.poly.label) {
+                    //Get poly size and compare to label size
+                    var bounds = item.poly.getBounds();
+                    var min = map.positionToPixel(bounds[0]);
+                    var max = map.positionToPixel(bounds[1]);
+                    var polySize = [ max[0] - min[0], min[1] - max[1] ];
+                    var labelSize = item.poly.label.real.pixelSize;
+                    if(polySize[0] < labelSize[0]) item.poly.label.hide();
+                    else item.poly.label.show();
                 }
             }
             for(var c = 0; c < boxes.length; c++) {

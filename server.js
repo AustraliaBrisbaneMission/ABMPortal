@@ -38,6 +38,7 @@ var Config = {
         financeName: "",
         financeEmail: ""
     },
+    standards: { elder: {}, sister: {} },
     imos: {
         startDate: new Date("2013-08-01"),
         latestDate: new Date("2013-08-01"),
@@ -67,6 +68,12 @@ db.db.open(function(error, database) {
         db.callsheet = db.database.collection('callsheet');
         db.config = db.database.collection('config');
         db.store = db.database.collection('store');
+        db.ward = db.database.collection('ward');
+        db.flat = db.database.collection('flat');
+        db.chapel = db.database.collection('chapel');
+        db.area = db.database.collection('area');
+        db.missionary = db.database.collection('missionaries');
+        db.standards = db.database.collection('standards');
         areaAnalysisCollections = {
             area: db.database.collection('area'),
             chapel: db.database.collection('chapel'),
@@ -93,6 +100,7 @@ db.db.open(function(error, database) {
         db.indicators.findOne({ $query: {}, $orderby: { date: -1 }}, function(err, result) {
             if(result) Config.imos.latestDate = new Date(result.date);
         });
+        getStandards();
     }
     if(Config.mongodb.username) {
         db.db.authenticate(Config.mongodb.username, Config.mongodb.password, { authdb: "admin" }, function(error, result) {
@@ -106,6 +114,7 @@ function dbCallback(err, result) {
     if(err) return console.log(err);
     console.log(result);
 }
+function dbLogIfError(err, result) { if(err) return console.log(err); }
 
 //Server Setup
 var server = express();
@@ -134,21 +143,31 @@ var Auth = {
     DL: 3,
     ZL: 4,
     ADMIN: 5,
+    setSession: function(req, variables) {
+        var sessionVariables = {
+            sso: null,
+            username: "",
+            missionary: false,
+            imos: false,
+            prefix: "",
+            displayName: "Guest",
+            fullName: "",
+            area: "",
+            unit: "",
+            zone: "",
+            position: null,
+            elder: true,
+            auth: Auth.NONE
+        };
+        if(!variables) for(var name in sessionVariables) req.session[name] = sessionVariables[name];
+        else for(var name in variables) req.session[name] = variables[name];
+    },
     login: function(req, callback) {
         var username = req.param('username'), password = req.param('password');
-        /*
-        //Bypass
-        if(username == "admin" && password == "ldschurch") {
-            req.session.username = username;
-            req.session.auth = Auth.ADMIN;
-            callback(true);
-            return;
-        }
-        */
+        Auth.setSession(req);
         
         function done(success) {
-            //TODO: Delete SSO logging
-            if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in! SSO=" + req.session.sso);
+            if(success) console.log(req.session.displayName + " (" + req.session.username + ") logged in!");
             callback(success);
         }
         
@@ -160,14 +179,13 @@ var Auth = {
         db.users.findOne(query, function(err, item) {
             if(err) { console.log(err); done(false); return; }
             if(item) {
-                req.session.sso = null;
-                req.session.missionary = false;
-                req.session.username = item.username;
-                req.session.prefix = "";
-                req.session.displayName = item.username;
-                req.session.fullName = item.username;
-                req.session.photoUrl = null;
-                req.session.auth = item.auth;
+                Auth.setSession(req, {
+                    missionary: false,
+                    username: item.username,
+                    displayName: item.username,
+                    fullName: item.username,
+                    auth: item.auth
+                });
                 done(true);
             }
             else {
@@ -181,12 +199,9 @@ var Auth = {
                     }
                 };
                 request(data, function(error, response, body) {
-                    if(error) {
-                        console.log("SSO Request Error for [" + username + "]: " + error);
-                    }
+                    if(error) console.log("SSO Request Error for [" + username + "]: " + error);
                     else if(response.statusCode != 200) {
-                        console.log("SSO Status Error for [" + username + "]: " +
-                                    response.statusCode);
+                        console.log("SSO Status Error for [" + username + "]: " + response.statusCode);
                     }
                     else {
                         var cookies = response.headers["set-cookie"];
@@ -195,34 +210,61 @@ var Auth = {
                                         "No cookies received");
                         }
                         else {
-                            req.session.sso = cookies[0].split(';')[0].split('=')[1];
-                            //req.session.sso = "mI5jGtDle7ygVGheQieD9rTmJd3G1qgYCWdZeQxT%2FNBdGV4XZNfbivm9ahxygZH3uXD8VTOGh%2B01GIYL6PWjLT%2FT%2Boz5fZK6aQcuEd04XYAZ00Qr61rVMyY3%2FNPxBc%2B7oUzR4exo02owV2Nk2Ed%2BiCwG%2FyJ%2BCCq%2Bk9BhXNqHRHCXxQyogcAiWfewXtuH00EUkapfdDWrcWvT9wvULixHDLc5atrI8W%2F%2B6fbZIKal1XWW%2Bjd%2FNW0KOYiBo%2BsuvwXcl35WxYWXlwRfv1R%2BiLTMQSMpDwvJmHOAaLaIi9mmQFTwy6cbyzB8JLgWULPJVrPd4%2B%2BvDuF%2FXf2vdQXEJDoP%2Bpb7L5LRLeSRkuqH4YSwARc%3D";
-                            req.session.username = username;
-                            req.session.missionary = false;
-                            req.session.imos = false;
-                            req.session.prefix = "";
-                            req.session.displayName = username;
-                            req.session.fullName = username;
-                            req.session.auth = Auth.OTHER;
+                            var sso = cookies[0].split(';')[0].split('=')[1];
+                            Auth.setSession(req, {
+                                sso: sso,
+                                username: username,
+                                displayName: username,
+                                fullName: username
+                            });
                             //Get missionary information
                             Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-assignment", function(result) {
                                 if(result.asgLocName == Config.mission.name) {
-                                    req.session.missionary = true;
-                                    req.session.prefix = result.msnyIsElder ? "Elder " : "Sister ";
-                                    req.session.displayName = req.session.prefix + result.lastName;
-                                    req.session.fullName = result.fullName;
-                                    req.session.auth = Auth.NORMAL;
+                                    Auth.setSession(req, {
+                                        missionary: true,
+                                        prefix: result.msnyIsElder ? "Elder " : "Sister ",
+                                        fullName: result.fullName,
+                                        displayName: (result.msnyIsElder ? "Elder " : "Sister ") + result.lastName,
+                                        auth: Auth.NORMAL
+                                    });
+                                    //Update IMOS information if possible
+                                    Auth.updateOrganisation(req, function(adminAccess) {
+                                        if(adminAccess) {
+                                            //Update indicators if over a day has passed since last update
+                                            var now = new Date();
+                                            var updateTime = new Date(Config.imos.latestUpdate);
+                                            updateTime.setDate(updateTime.getDate() + Config.imos.daysUntilNextUpdate);
+                                            console.log("Now = " + now + " & updateTime = " + updateTime);
+                                            if(now > updateTime) Auth.updateIndicators(req, null, null, function() {});
+                                        }
+                                        //TODO: Find a way to get the missionary where it will work with two of the same name (ID maybe?)
+                                        var query = { fullName: req.session.fullName };
+                                        db.missionary.findOne(query, function(error, record) {
+                                            if(error) { console.log(error); return; }
+                                            var auth = Auth.NORMAL;
+                                            if(adminAccess) auth = Auth.ADMIN;
+                                            else if(record.position == "ASSISTANT") auth = Auth.ADMIN;
+                                            else if(record.position == "ZONE_LEADER_LEAD" ||
+                                                record.position == "ZONE_LEADER" ||
+                                                record.position == "SISTER_TRAINING_LEADER") auth = Auth.ZL;
+                                            else if(record.position == "DISTRICT_LEADER_TRAINER" ||
+                                                record.position == "DISTRICT_LEADER") auth = Auth.DL;
+                                            Auth.setSession(req, {
+                                                zone: record.zone,
+                                                district: record.district,
+                                                area: record.area,
+                                                unit: record.unit,
+                                                position: record.position,
+                                                elder: record.elder,
+                                                auth: auth
+                                            });
+                                            done(true);
+                                        });
+                                    });
+                                    return;
                                 }
                                 else if(result.fullName) req.session.displayName = result.fullName;
-                                done(true);
                             });
-                            //Update IMOS information if possible
-                            var now = new Date();
-                            var updateTime = new Date(Config.imos.latestUpdate);
-                            //Update if over a day has passed since last update
-                            updateTime.setDate(updateTime.getDate() + Config.imos.daysUntilNextUpdate);
-                            console.log("Now = " + now + " & updateTime = " + updateTime);
-                            if(now > updateTime) Auth.updateIndicators(req);
                             return;
                         }
                     }
@@ -234,16 +276,7 @@ var Auth = {
             }
         });
     },
-    logout: function(req) {
-        req.session.sso = null;
-        req.session.username = null;
-        req.session.missionary = null;
-        req.session.prefix = null;
-        req.session.displayName = null;
-        req.session.fullName = null;
-        req.session.auth = Auth.NONE;
-        req.session.imos = null;
-    },
+    logout: function(req) { Auth.setSession(req); },
     require: function(req, res, auth) {
         if(req.session.auth && req.session.auth >= auth) return false;
         res.redirect('/noauth');
@@ -276,8 +309,171 @@ var Auth = {
             catch(error) { callback("JSON Error: " + body); }
         });
     },
+    updateOrganisation: function(req, callback) {
+        Auth.sso(req, "https://missionary.lds.org/ki-entry-proxy/report/local/1/", function(result) {
+            var records = {}, currentRecord;
+            var missionaryRecords = {}, currentMissionaries = {};
+            var zone, district, area;
+            var positions = [
+                "JUNIOR_COMPANION",
+                "SENIOR_COMPANION",
+                "SPECIAL_ASSIGNMENT",
+                "TRAINER",
+                "DISTRICT_LEADER",
+                "DISTRICT_LEADER_TRAINER",
+                "SISTER_TRAINING_LEADER",
+                "ZONE_LEADER",
+                "ZONE_LEADER_LEAD",
+                "ASSISTANT"
+            ];
+            var positionValues = [];
+            for(var i = 0; i < positions.length; i++) positionValues[positions[i]] = i;
+            function parseError(message) { console.log("OrgParse Error: " + message); }
+            function parseEntities(entity) {
+                var entities = entity.entities;
+                if(entity.type == "org") {
+                    if(entities) parseError("Entity type 'org' has entities!");
+                    else return;
+                }
+                else if(!entities) return parseError("No entities for " + entity.type + " '" + entity.name + "'!");
+                for(var i = 0, count = entities.length; i < count; i++) {
+                    parseEntity(entities[i]);
+                }
+            }
+            function checkValue(obj, property, defaultValue) {
+                if(!obj) {
+                    parseError("Defaulting to '" + defaultValue + "' because object for '" + property + "' not set!");
+                    return defaultValue;
+                }
+                var value = obj[property];
+                if(value === null || value === undefined) {
+                    parseError("'" + property + "'' defaulted to '" + defaultValue + "'");
+                    return defaultValue;
+                }
+                return value;
+            }
+            function parseEntity(entity) {
+                var type = entity.type;
+                var name = entity.name;
+                if(typeof name != "string") return parseError("Name != string");
+                if(type == "mission") {
+                    if(name != Config.mission.name) return;
+                }
+                else if(type == "zone") zone = entity;
+                else if(type == "district") district = entity;
+                else if(type == "area") {
+                    area = entity;
+                    var missionaries = [];
+                    var areaPosition = 0;
+                    currentMissionaries = {};
+                    if(area.missionaries) {
+                        for(var d = 0; d < area.missionaries.length; d++) {
+                            var missionary = area.missionaries[d];
+                            //Get missionary fields
+                            var id = checkValue(missionary, "id", 0);
+                            var firstName = checkValue(missionary, "firstName", "");
+                            var middleName = checkValue(missionary, "middleName", "");
+                            var lastName = checkValue(missionary, "lastName", "");
+                            var elder = checkValue(missionary, "gender", "M") == "M";
+                            var position = checkValue(missionary, "position", positions[0]);
+                            //Add the missionary to the area
+                            missionaries.push({
+                                id: id,
+                                firstName: firstName,
+                                middleName: middleName,
+                                lastName: lastName,
+                                elder: elder,
+                                position: position
+                            });
+                            //Calculate the highest missionary position in the area
+                            var positionValue = positionValues[missionary.position];
+                            if(positionValue > areaPosition) areaPosition = positionValue;
+                            //Add the missionary to the database records
+                            missionaryRecords[id] = currentMissionaries[id] = {
+                                id: id,
+                                firstName: firstName,
+                                middleName: middleName,
+                                lastName: lastName,
+                                fullName: firstName + " " + lastName,
+                                elder: elder,
+                                position: position,
+                                area: area.name,
+                                district: district.name,
+                                zone: zone.name,
+                                standards: {}
+                            };
+                        }
+                    }
+                    else parseError("No missionaries in '" + entity.name + "'");
+                    //Create the new record
+                    if(!zone) parseError("No zone for area '" + name + "'!");
+                    if(!district) parseError("No district for area '" + name + "'!");
+                    records[area.id] = currentRecord = {
+                        id: checkValue(area, "id", 0),
+                        name: name,
+                        district: checkValue(district, "name", ""),
+                        zone: checkValue(zone, "name", ""),
+                        missionaries: missionaries,
+                        position: positions[areaPosition]
+                    };
+                }
+                else if(type == "org") {
+                    var unit = entity.name;
+                    if(typeof unit != "string") return parseError("unit.name != string");
+                    if(unit.substr(-5) == " Ward") unit = unit.substr(0, unit.length - 5);
+                    else if(unit.substr(-7) == " Branch") unit = unit.substr(0, unit.length - 7);
+                    //Add unit to current area and missionaries
+                    if(!currentRecord) return parseError("No current record set for unit!");
+                    currentRecord.unit = unit;
+                    for(var i in currentMissionaries) currentMissionaries[i].unit = unit;
+                }
+                parseEntities(entity);
+            }
+            var entity = result.entity;
+            if(entity.type == "mission") {
+                //Get all the area records for the database
+                parseEntity(entity);
+                //Update previous area details from the database before inserting
+                db.area.find().toArray(function(error, items) {
+                    for(var i = 0; i < items.length; i++) {
+                        var item = items[i];
+                        var record = records[item.id];
+                        if(record) {
+                            record.flat = item.flat;
+                            record.boundaries = item.boundaries;
+                            record.areaSharedWith = item.areaSharedWith;
+                            record.size = item.size;
+                            record.centroid = item.centroid;
+                            record.centroidDistance = item.centroidDistance;
+                            record.chapelPath = item.chapelPath;
+                            record.chapelDistance = item.chapelDistance;
+                        }
+                    }
+                    //Sort records into an array for the database to insert
+                    var insert = [];
+                    for(var id in records) insert.push(records[id]);
+                    db.area.remove(function(error, result) {
+                        if(error) { console.log(error); return; }
+                        db.area.insert(insert, function(error, result) {
+                            console.log(error ? error : "Organisation successfully updated!");
+                            var insert = [];
+                            for(var id in missionaryRecords) insert.push(missionaryRecords[id]);
+                            db.missionary.remove(function(error, result) {
+                                if(error) { console.log(error); return; }
+                                db.missionary.insert(insert, function(error, result) {
+                                    console.log(error ? error : "Missionaries successfully updated!");
+                                    callback(true);
+                                });
+                            });
+                        });
+                    });
+                });
+            }
+            else callback(false);
+        });
+    },
     //Set 'date' to extract indicators from the previous to 'date'
-    updateIndicators: function(req, date, all) {
+    updateIndicators: function(req, date, all, callback) {
         if(!date) date = new Date();
         //Convert the date to the Monday after the reported week
         date.setDate(date.getDate() - (date.getDay() || 7) + 1);
@@ -302,15 +498,17 @@ var Auth = {
             if(!result || !result.entity) {
                 console.log("User does not have IMOS access. Stopping...");
                 console.log("Result = " + result + " & url = " + url);
+                if(callback) callback(false);
                 return;
             }
+            callback(true);
             console.log("Getting indicators for " + formattedDate + "...");
             //Get key indicator IDs
             var logs = { "Items updated:": 0 };
             var indicatorNames = {
                 "10": "baptised",
                 "20": "confirmed",
-                "30": "baptismalDates",
+                "30": "baptismalDate",
                 "40": "sacrament",
                 "50": "memberPresent",
                 "60": "otherLesson",
@@ -368,10 +566,10 @@ var Auth = {
                         item.area = area.name;
                         //Set date as the Monday after the reported week
                         item.date = date;
-                        //Add ward ('Chermside Ward' to 'Chermside')
-                        var ward = report.name;
-                        ward = ward.substring(0, ward.lastIndexOf(' '));
-                        item.ward = ward;
+                        //Add unit ('Chermside Ward' to 'Chermside')
+                        var unit = report.name;
+                        unit = unit.substring(0, unit.lastIndexOf(' '));
+                        item.ward = unit;
                         //Add missionaries
                         item.missionaries = [];
                         if(!area.missionaries) continue;
@@ -429,27 +627,6 @@ server.get('/noauth', function (req, res) {
     render(req, res, "noauth", {});
 });
 
-//TODO: Remove these before deploying...
-// --- TESTING ---
-server.get('/sso', function (req, res) {
-    res.send("Your SSO is: " + req.session.sso + '<form method="POST"><input type="text" name="sso" /><input type="submit"></form>');
-});
-server.post('/sso', function (req, res) {
-    req.session.sso = req.body.sso;
-    res.send("Your SSO is now set to: " + req.session.sso);
-});
-server.get('/update_indicators', function (req, res) {
-    Auth.updateIndicators();
-});
-server.get('/update_indicators2', function (req, res) {
-    var formattedDate = "2013-10-14";
-    var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + formattedDate + "/" + formattedDate + "/mission/14292";
-    Auth.sso(req, url, function(result) {
-        console.log("Indicators: " + result);
-    });
-});
-// --------------
-
 //Email
 var Email;
 var Emailer = function() {
@@ -495,7 +672,11 @@ function render(req, res, page, params) {
     params.prefix = req.session.prefix;
     params.displayName = req.session.displayName;
     params.fullName = req.session.fullName;
+    params.area = req.session.area;
+    params.unit = req.session.unit;
+    params.zone = req.session.zone;
     params.auth = req.session.auth;
+    params.admin = req.session.auth == Auth.ADMIN;
     res.render(page, params);
 }
 var Page = function(url, jade, auth, onResponse) {
@@ -511,6 +692,91 @@ var Page = function(url, jade, auth, onResponse) {
 };
 server.get('/', function (req, res) {
     render(req, res, "index", {});
+});
+
+server.get('/ki_check', function (req, res) {
+    render(req, res, "ki_check", {});
+});
+server.get('/ki_check/get', function (req, res) {
+    db.indicators.find().toArray(function(error, items) { res.send(items); });
+});
+
+function getStandards() {
+    Config.standards = { elder: {}, sister: {} };
+    db.standards.find().toArray(function(error, items) {
+        if(error) { console.log(error); return; }
+        for(var i = 0; i < items.length; i++) {
+            var item = items[i];
+            var standards = Config.standards[item.elder ? "elder" : "sister"];
+            var category = standards[item.category] || {};
+            category[item.name] = item._id;
+            standards[item.category] = category;
+        }
+    });
+}
+server.get('/standards', function (req, res) {
+    if(Auth.require(req, res, Auth.DL)) return;
+    render(req, res, "standards", {});
+});
+server.get('/standards/get', function (req, res) {
+    if(Auth.require(req, res, Auth.DL)) return;
+    var query = {};
+    if(req.session.auth == Auth.DL) query = { district: req.session.district };
+    else if(req.session.auth == Auth.ZL) query = { zone: req.session.zone };
+    db.missionary.find(query).toArray(function(error, items) {
+        var zones = {};
+        for(var i = 0; i < items.length; i++) {
+            var item = items[i];
+            if(!zones[item.zone]) zones[item.zone] = {};
+            var zone = zones[item.zone];
+            if(!zone[item.district]) zone[item.district] = {};
+            var district = zone[item.district];
+            if(!district[item.area]) district[item.area] = [];
+            var area = district[item.area];
+            area.push({
+                _id: item._id,
+                name: (item.elder ? "Elder " : "Sister ") + item.lastName,
+                elder: item.elder,
+                standards: item.standards
+            });
+        }
+        res.send({ standards: Config.standards, zones: zones });
+    });
+});
+server.post('/standards/save', function (req, res) {
+    if(Auth.require(req, res, Auth.DL)) return;
+    var missionaries = req.body;
+    for(var i = 0, length = missionaries.length; i < length; i++) {
+        var missionary = missionaries[i];
+        var standards = {};
+        for(var standard in missionary.standards) {
+            if(missionary.standards[standard]) standards[standard] = true;
+        }
+        var query = { _id: new mongodb.ObjectID(missionary._id) };
+        if(req.session.auth == Auth.DL) query.district = req.session.district;
+        else if(req.session.auth == Auth.ZL) query.zone = req.session.zone;
+        var update = { $set: { standards: standards } };
+        db.missionary.update(query, update, dbLogIfError);
+    }
+    res.send();
+});
+server.post('/standards/admin', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var deleted = req.body.deleted;
+    var modified = req.body.modified;
+    var inserted = req.body.inserted;
+    for(var i = 0, length = deleted.length; i < length; i++) {
+        var query = { _id: new mongodb.ObjectID(deleted[i]) };
+        console.log("Deleting '" + deleted[i] + "'...");
+        db.standards.remove(query, dbLogIfError);
+    }
+    for(var id in modified) {
+        var query = { _id: new mongodb.ObjectID(id) };
+        db.standards.update(query, modified[id], dbLogIfError);
+    }
+    db.standards.insert(inserted, dbLogIfError);
+    res.send();
+    getStandards();
 });
 
 server.get('/cards', function (req, res) {
@@ -816,7 +1082,7 @@ server.get('/imos/indicators.csv', function (req, res) {
         "missionaries": "Missionaries",
         "baptised": "Baptized",
         "confirmed": "Confirmed",
-        "baptismalDates": "Baptismal Dates",
+        "baptismalDate": "Baptismal Dates",
         "sacrament": "Investigators at Sacrament",
         "memberPresent": "Member Present Lessons",
         "otherLesson": "Other Lessons",
@@ -860,7 +1126,7 @@ server.get('/imos/indicators.csv', function (req, res) {
             if(key == "missionaries") {
                 var missionaries = [];
                 for(var i in value) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
-                line[indexes["missionaries"]] = missionaries.join(' / ');
+                line[indexes.missionaries] = missionaries.join(" / ");
             }
             //TODO: Catch this before INSERTING into the database
             else if(key == "findingPotentials") {
@@ -918,7 +1184,7 @@ server.get('/imos/indicators2.csv', function (req, res) {
         "missionaries": "Missionaries",
         "baptised": "Baptized",
         "confirmed": "Confirmed",
-        "baptismalDates": "Baptismal Dates",
+        "baptismalDate": "Baptismal Dates",
         "sacrament": "Investigators at Sacrament",
         "memberPresent": "Member Present Lessons",
         "otherLesson": "Other Lessons",
@@ -1146,55 +1412,13 @@ server.get('/imos/effectiveness_data.csv', function (req, res) {
 
 //Area Analysis
 server.get('/area_analysis', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
+    if(Auth.require(req, res, Auth.NORMAL)) return;
     render(req, res, "area", {});
-});
-server.post('/area_analysis/get', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    if(req.body.id) {
-        res.send({});
-    }
-    else {
-        db[req.body.type].find().toArray(function(err, items) {
-            if(err) { console.log(err); res.send(500, err); }
-            else res.send(items);
-        });
-    }
-});
-server.post('/area_analysis/add', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    var data = AreaAnalysis.getData(req);
-    db[req.body.type].insert(data, {w:1}, function (err, result) {
-            if(err) { console.log(err); res.send(500, err); }
-        else res.send(result);
-    });
-});
-server.post('/area_analysis/update', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    db[req.body.type].update({ _id: mongodb.ObjectID(req.body.id) }, {
-        $set: AreaAnalysis.getData(req)
-    }, {w:1}, function(err, result) {
-        if(err) { console.log(err); res.send(500, err); }
-        else {
-            var query = { _id: mongodb.ObjectID(req.body.id) };
-            db[req.body.type].find(query).toArray(function(err, items) {
-                if(err) { console.log(err); res.send(500, err); }
-                res.send(items, 200);
-            });
-        }
-    });
-});
-server.post('/area_analysis/remove', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    db[req.body.type].remove({ _id: mongodb.ObjectID(req.body.id) }, {w:1}, function(err, result) {
-        if(err) { console.log(err); res.send(500, err); }
-        else res.send(200);
-    });
 });
 
 var areaAnalysisCollections = null;
 server.post('/area_analysis/db', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
+    if(Auth.require(req, res, Auth.NORMAL)) return;
     var collection, id;
     //Missionary area calculator
     if(req.body.collection == "missionaryAreas") {
@@ -1204,7 +1428,6 @@ server.post('/area_analysis/db', function (req, res) {
         db.indicators.find(query).toArray(function(err, items) {
             if(err) { console.log(err); res.send(500, err); }
             else {
-                console.error(date);
                 var result = [], areas = {};
                 for(var i = 0; i < items.length; i++) {
                     var item = items[i];
@@ -1222,7 +1445,6 @@ server.post('/area_analysis/db', function (req, res) {
                         area: item.area
                     });
                 }
-                console.log(result);
                 res.send(result);
             }
         });
@@ -1231,7 +1453,30 @@ server.post('/area_analysis/db', function (req, res) {
     //--------------------------
     collection = areaAnalysisCollections[req.body.collection];
     if(req.body.action == "getall") {
-        collection.find().toArray(function(err, items) {
+        if(req.session.auth < Auth.ADMIN) {
+            if(req.body.collection == "ward") {
+                collection.findOne({ name: req.session.unit }, function(error, result) {
+                    if(error) { console.log(error); res.send(500); }
+                    else if(result) collection.find({ stake: result.stake }).toArray(function(err, items) {
+                        if(err) { console.log(err); res.send(500); }
+                        else res.send(items);
+                    });
+                    else console.log("Error: Unit '" + req.session.unit + "' is not in the database!");
+                });
+            }
+            else if(req.body.collection == "area") {
+                collection.find({ zone: req.session.zone }).toArray(function(err, items) {
+                    if(err) { console.log(err); res.send(500); }
+                    else res.send(items);
+                });
+            }
+            else if(req.body.collection == "flat") res.send([]);
+            else collection.find().toArray(function(err, items) {
+                if(err) { console.log(err); res.send(500, err); }
+                else res.send(items);
+            });
+        }
+        else collection.find().toArray(function(err, items) {
             if(err) { console.log(err); res.send(500, err); }
             else res.send(items);
         });
@@ -1263,7 +1508,60 @@ server.post('/area_analysis/db', function (req, res) {
             else res.send(200);
         });
     }
+    else if(req.body.action == "removeall") {
+        collection.remove({}, {w:1}, function(err, result) {
+            if(err) { console.log(err); res.send(500, err); }
+            else res.send(200);
+        });
+    }
     else res.send(500, "Unknown action");
+});
+function csvTemplate(res, collection, headings) {
+    var line = [];
+    for(var i = 0; i < headings.length; i++) line.push(headings[i].csvName);
+    var lines = [ line ];
+    var cursor = collection.find();
+    function addRecord(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        if(!result) {
+            res.set('Content-Type', 'text/csv');
+            res.send(csv.arrayToCsv(lines));
+            return;
+        }
+        var line = [];
+        for(var i = 0; i < headings.length; i++) {
+            var value = result[headings[i].dbName];
+            line.push((value === undefined || value === null) ? "" : value);
+        }
+        lines.push(line);
+        cursor.next(addRecord);
+    }
+    cursor.next(addRecord);
+}
+server.get('/area_analysis/flat_mapdata.csv', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    csvTemplate(res, db.flat, [
+        { dbName: "name", csvName: "Name" },
+        { dbName: "address", csvName: "Address" }
+    ]);
+});
+server.get('/area_analysis/chapel_mapdata.csv', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    csvTemplate(res, db.chapel, [
+        { dbName: "name", csvName: "Name" },
+        { dbName: "address", csvName: "Address" }
+    ]);
+});
+server.get('/area_analysis/area_mapdata.csv', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    csvTemplate(res, db.area, [
+        { dbName: "name", csvName: "Name" },
+        { dbName: "district", csvName: "District" },
+        { dbName: "zone", csvName: "Zone" },
+        { dbName: "ward", csvName: "Ward" },
+        { dbName: "flat", csvName: "Flat" },
+        { dbName: "missionaries", csvName: "Missionaries" }
+    ]);
 });
 
 server.listen(Config.nodejs.port, Config.nodejs.ip, function() {

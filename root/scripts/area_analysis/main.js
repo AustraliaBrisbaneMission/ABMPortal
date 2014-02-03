@@ -1,4 +1,4 @@
-var areaBoundaries = [], centroid, areaPoly;
+var areaBoundaries = [], areaPoly;
 var iconBase = '/stylesheets/icons/';
 var icons = {
     circle: {
@@ -30,7 +30,7 @@ var areaSettings = {
 };
 
 //Forms
-var Chapels, Flats, Areas, Wards, Directions, Missionaries;
+var Chapels, Flats, Areas, Wards, Directions, Missionaries, AreaSplits;
 
 function getChapelPath(show, callback) {
     var distance = 0;
@@ -52,8 +52,8 @@ function getChapelPath(show, callback) {
                             for(var c = 1; c < path.length; c++) {
                                 distance += getDistance(path[c - 1], path[c]);
                             }
-                            Areas.chapelPath = path;
-                            Areas.chapelDistance = distance;
+                            Areas.currentItem.chapelPath = path;
+                            Areas.currentItem.chapelDistance = distance;
                             if(callback) callback();
                         }
                     });
@@ -64,66 +64,10 @@ function getChapelPath(show, callback) {
         }
     }
 }
-function getCentroidDistance() {
-    if(!Areas.flat || !centroid) return 0;
-    return getDistance(centroid.getPosition(), Areas.flat.position);
-}
-function initAreaPoly(area) {
-    //Draw area boundaries on map
-    area.points = [];
-    for(var i = 0; i < area.boundaries.length; i++) {
-        area.points.push(area.boundaries[i]);
-    }
-    area.poly = new map.Polygon({
-        show: Areas.visible,
-        paths: area.points,
-        strokeColor: '#FF6666',
-        strokeOpacity: 0.8,
-        strokeWeight: 2,
-        fillColor: areaSettings.fillColor,
-        fillOpacity: areaSettings.fillOpacity,
-        clickable: true
-    });
-    Areas.mapElements.push(area.poly);
-    area.poly.on('click', function(e) {
-        Areas.open(area);
-    });
-    area.label = new map.Label({
-        show: Areas.visible,
-        position: calculateCentroid(area.points),
-        title: area.name
-    });
-    Areas.mapElements.push(area.label);
-}
 function removeAreaPoly() {
     for(var i = 0; i < areaBoundaries.length; i++) areaBoundaries[i].hide();
     areaBoundaries = [];
     areaPoly.hide();
-}
-function resetAreaPoly(area) {
-    if(Areas.chapelPathPoly) Areas.chapelPathPoly.hide();
-    area.poly.show();
-}
-function updateBoundary() {
-    var paths = [];
-    for(var i = 0; i < areaBoundaries.length; i++) paths.push(areaBoundaries[i].getPosition());
-    areaPoly.setOptions({ paths: paths });
-    if(areaBoundaries.length >= 3) {
-        centroid.setOptions({ position: calculateCentroid(areaBoundaries) });
-        Areas.centroidDistance = getCentroidDistance();
-    }
-    Areas.areaSize = getArea(areaBoundaries);
-    Areas.updateField("size");
-    Areas.updateField("centroidDistance");
-}
-function addBoundaryMarker(position) {
-    var marker = new map.Marker({
-        position: position,
-        draggable: true
-    });
-    enableSnapping(marker);
-    marker.on('dragend', updateBoundary);
-    areaBoundaries.push(marker);
 }
 
 /*
@@ -300,13 +244,6 @@ var mapContainer = null;
 function initialise() {
     mapContainer = document.getElementById('map');
     map = new Map(mapContainer);
-    map.on('click', function(e) {
-        if(Areas.state == "create") {
-            addBoundaryMarker(e.position);
-            updateBoundary();
-        }
-    });
-    centroid = new map.Marker({ title: "Centroid" });
     areaPoly = new map.Polygon({
         paths: [],
         strokeColor: '#6666FF',
@@ -376,6 +313,7 @@ function initialise() {
             points: [],
             checkPoints: function() {
                 var points = Directions.points;
+                var waypoints = [];
                 for(var i = 0; i < points.length; i++) {
                     var point = Directions.points[i];
                     if(!point.value.length && i < points.length - 1) {
@@ -386,10 +324,22 @@ function initialise() {
                     var letter = String.fromCharCode(65 + i);
                     point.id = "directions" + letter;
                     point.placeholder = "Point " + letter;
+                    if(point.value.length) waypoints.push({ location: point.value });
                 }
                 if(points[points.length - 1].value.length && points.length < 10) {
                     Directions.addPoint();
                 }
+                if(waypoints.length < 2) return;
+                var origin = waypoints[0].location;
+                waypoints.splice(0, 1);
+                var destination = waypoints[waypoints.length - 1].location;
+                waypoints.splice(waypoints.length - 1, 1);
+                map.getDirections({
+                    origin: origin,
+                    waypoints: waypoints,
+                    destination: destination,
+                    show: true
+                });
             },
             addPoint: function() {
                 var point = document.createElement('INPUT');
@@ -413,9 +363,11 @@ function initialise() {
     WardLabels = new Form({ name: "Display Ward Labels:", show: false, noDb: true });
     Wards = new Form({
         name: "ward",
+        displayName: "Wards",
+        show: false,
         fields: {
-            name: "text",
-            chapel: "text",
+            name: { displayName: "Name" },
+            chapel: { displayName: "Chapel" },
             boundaries: {
                 noDisplay: true,
                 getValueToSave: function() {
@@ -479,18 +431,23 @@ function initialise() {
                 check("boundaries", []);
                 
                 //Create ward boundary polygon
-                if(!stakeColours[ward.stake]) {
-                    stakeColours[ward.stake] = defaultColours[colourCount++];
+                var colour;
+                if(User.auth < Auth.ADMIN) colour = defaultColours[colourCount++];
+                else {
+                    if(!stakeColours[ward.stake]) stakeColours[ward.stake] = defaultColours[colourCount++];
+                    colour = stakeColours[ward.stake];
                 }
                 ward.poly = new map.Polygon({
                     show: Wards.visible,
                     paths: ward.boundaries,
-                    strokeColor: "#333",
+                    strokeColor: ward.name == User.unit ? "#F33" : "#333",
                     strokeOpacity: 0.5,
-                    strokeWeight: 2,
-                    fillColor: stakeColours[ward.stake],
+                    strokeWeight: ward.name == User.unit ? 4 : 2,
+                    fillColor: colour,
                     fillOpacity: 0.1,
-                    clickable: false
+                    zIndex: 1,
+                    clickable: false,
+                    pan: ward.name == User.unit
                 });
                 Wards.mapElements.push(ward.poly);
                 ward.label = new map.Label({
@@ -500,8 +457,8 @@ function initialise() {
                     position: calculateCentroid(ward.boundaries)
                 });
                 WardLabels.mapElements.push(ward.label);
-            };
-            return items;
+            }
+            Areas.findUnits();
         },
         variables: {
             boundaries: [],
@@ -512,9 +469,15 @@ function initialise() {
     
     Flats = new Form({
         name: "flat",
+        displayName: "Flats",
         fields: {
-            name: "text",
-            address: "text",
+            name: { displayName: "Name" },
+            address: { displayName: "Address" },
+            areas: {
+                displayName: "Areas",
+                render: function(areas) { return areas.join(" / "); }
+            },
+            id: { displayName: "IMOS Housing ID" },
             position: {
                 noDisplay: true,
                 getValueToSave: function() {
@@ -540,53 +503,99 @@ function initialise() {
                 icon: icons.flatHighlight
             })
         },
+        onInitialise: function(items) {
+            Areas.findFlats();
+            return items;
+        },
         onItemInitialise: function(flat) {
-            flat.marker = new map.Marker({
-                show: true,
-                icon: icons.flat,
-                label: flat.name + " Flat"
-            });
-            Flats.mapElements.push(flat.marker);
-            PointPicker.addClick(flat.marker, flat.address);
-            flat.marker.on('click', function(e) {
-                openInfoWindow(flat, "Flat", Flats);
-            });
-            if(flat.position) {
-                flat.position = [
-                    parseFloat(flat.position[0]),
-                    parseFloat(flat.position[1])
-                ];
-                flat.marker.setOptions({ position: flat.position });
-            }
-            else if(flat.address) {
-                map.geocode(flat.address, function(results) {
-                    flat.position = results.position;
-                    flat.marker.setOptions({ position: flat.position });
+            function createMarker(result) {
+                flat.marker = new map.Marker({
+                    show: true,
+                    position: result ? result.position : flat.position,
+                    icon: icons.flat,
+                    label: flat.name + " Flat"
+                });
+                Flats.mapElements.push(flat.marker);
+                PointPicker.addClick(flat.marker, flat.address);
+                flat.marker.on('click', function(e) {
+                    openInfoWindow(flat, "Flat", Flats);
+                });
+                if(result) {
+                    flat.position = result.position;
                     $.post("/area_analysis/db", {
                         action: "update",
                         collection: "flat",
                         id: flat._id,
                         data: { position: flat.position }
                     });
-                });
+                    console.log(flat.name + " flat geocoded!");
+                }
+            }
+            if(flat.position) createMarker();
+            else {
+                console.log("No position for " + flat.name + " flat. Geocoding...");
+                map.geocode(flat.address, createMarker);
             }
             return flat;
+        },
+        onUpload: function(data, callback) {
+            function getCell(cellName) {
+                var cells = {
+                    NAME: 0,
+                    ID: 1,
+                    ADDRESS: 2,
+                    CITY: 3,
+                    AREAS: 4,
+                    TYPE: 5,
+                    STATUS: 6
+                };
+                var data = line[cells[cellName]];
+                if(cellName == "AREAS" && data) {
+                    var areas = data.split(",");
+                    for(var i = 0; i < areas.length; i++) areas[i] = areas[i].trim();
+                    return areas;
+                }
+                return data ? data.trim() : data;
+            }
+            function getRecord() {
+                return {
+                    name: getCell("NAME"),
+                    address: getCell("ADDRESS") + ", " + getCell("CITY"),
+                    position: null,
+                    id: getCell("ID"),
+                    areas: getCell("AREAS")
+                };
+            }
+            var line;
+            var dbData = [];
+            var previousLineData = {};
+            var dataLength = data.length;
+            if(dataLength) {
+                line = data[0];
+                previousLineData = getRecord();
+                for(var i = 1; i < dataLength; i++) {
+                    line = data[i];
+                    if(getCell("ID")) {
+                        dbData.push(previousLineData);
+                        previousLineData = getRecord();
+                    }
+                    else if(getCell("AREAS")) {
+                        previousLineData.areas = previousLineData.areas.concat(getCell("AREAS"));
+                    }
+                }
+                dbData.push(previousLineData);
+            }
+            callback(dbData);
         }
     });
     
     Chapels = new Form({
         name: "chapel",
+        displayName: "Chapels",
         fields: {
-            name: "text",
-            address: "text",
-            position: {
-                noDisplay: true,
-                getValueToSave: function(callback) {
-                    map.geocode(Chapels.currentItem.address, function(results) {
-                        Chapels.setValueToSave("position", results.position);
-                    });
-                }
-            }
+            name: { displayName: "Name" },
+            address: { displayName: "Address" },
+            position: { noDisplay: true }
         },
         onOpen: function(itemIndex) {
             Chapels.currentItem.marker.setOptions({ icon: icons.chapelHighlight });
@@ -602,26 +611,56 @@ function initialise() {
             marker: new map.Marker({ icon: icons.chapelHighlight })
         },
         onItemInitialise: function(chapel) {
-            chapel.marker = new map.Marker({
-                show: true,
-                position: chapel.position,
-                icon: icons.chapel
-            });
-            Chapels.mapElements.push(chapel.marker);
-            PointPicker.addClick(chapel.marker, chapel.address);
-            chapel.marker.on('click', function(e) {
-                openInfoWindow(chapel, "Chapel", Chapels);
-            });
+            function createMarker(result) {
+                chapel.marker = new map.Marker({
+                    show: true,
+                    position: result ? result.position : chapel.position,
+                    icon: icons.chapel
+                });
+                Chapels.mapElements.push(chapel.marker);
+                PointPicker.addClick(chapel.marker, chapel.address);
+                chapel.marker.on('click', function(e) {
+                    openInfoWindow(chapel, "Chapel", Chapels);
+                });
+                if(result) {
+                    chapel.position = result.position;
+                    $.post("/area_analysis/db", {
+                        action: "update",
+                        collection: "chapel",
+                        id: chapel._id,
+                        data: { position: chapel.position }
+                    });
+                    console.log(chapel.name + " chapel geocoded!");
+                }
+            }
+            if(chapel.position) createMarker();
+            else {
+                console.log("No position for " + chapel.name + " chapel. Geocoding...");
+                map.geocode(chapel.address, createMarker);
+            }
             return chapel;
+        },
+        onUpload: function(data, callback) {
+            var dbData = [];
+            for(var i = 0; i < data.length; i++) {
+                var line = data[i];
+                dbData.push({
+                    name: line[0],
+                    address: line[1],
+                    position: null
+                });
+            }
+            callback(dbData);
         }
     });
     
     Missionaries = new Form({
         name: "missionaryAreas",
+        displayName: "Areas by Missionaries",
         fields: {
-            name: "text",
-            ward: "text",
-            area: "text"
+            name: { displayName: "Name" },
+            ward: { displayName: "Ward" },
+            area: { displayName: "Area" }
         },
         onOpen: function(itemIndex) {
             var wardName = Missionaries.currentItem.ward;
@@ -634,146 +673,99 @@ function initialise() {
     
     Areas = new Form({
         name: "area",
-        show: false,
+        displayName: "Areas",
         fields: {
-            name: "text",
-            ward: "text",
-            flat: "text",
-            boundaries: {
-                noDisplay: true,
-                getValueToSave: function() {
-                    var boundaries = [];
-                    for(var i = 0; i < areaBoundaries.length; i++) {
-                        boundaries.push(areaBoundaries[i].position);
+            name: { displayName: "Name" },
+            district: { displayName: "District" },
+            zone: { displayName: "Zone" },
+            unit: {
+                displayName: "Unit",
+                render: function(unit) { return unit ? unit.name : "(Unknown)"; }
+            },
+            missionaries: {
+                displayName: "Missionaries",
+                render: function(missionaries) {
+                    if(!missionaries || !missionaries.length) return "";
+                    var list = [];
+                    for(var i = 0; i < missionaries.length; i++) {
+                        var missionary = missionaries[i];
+                        var prefix = missionary.elder ? "Elder " : "Sister ";
+                        list.push(prefix + missionary.lastName);
                     }
-                    Areas.setValueToSave("boundaries", boundaries);
+                    return list.join(" / ");
                 }
             },
+            flat: {
+                displayName: "Flat",
+                render: function(flat) { return flat.name; }
+            },
+            boundaries: { noDisplay: true },
             size: {
-                render: function() {
-                    var size = 0;
-                    if(Areas.state == "open") {
-                        if(Areas.currentItem) size = Areas.currentItem.size;
-                    }
-                    else if(Areas.state == "edit") size = Areas.areaSize;
-                        else if(Areas.state == "create") size = Areas.areaSize;
-                        return parseFloat(size).toFixed(1) + "km2";
-                },
-                getValueToSave: function() {
-                    Areas.areaSize = getArea(areaBoundaries);
-                    Areas.setValueToSave("size", Areas.areaSize);
-                },
-                defaultValue: 0
-            },
-            centroid: {
-                noDisplay: true,
-                getValueToSave: function() {
-                    Areas.setValueToSave("centroid", centroid.position);
+                displayName: "Size",
+                render: function(size) {
+                    return parseFloat(size).toFixed(1) + "km2";
                 }
             },
+            centroid: { noDisplay: true },
             centroidDistance: {
-                render: function() {
-                    return parseFloat(Areas.centroidDistance).toFixed(2) + "km";
-                },
-                getValueToSave: function() {
-                    Areas.setValueToSave("centroidDistance", getCentroidDistance());
-                },
-                defaultValue: 0
+                displayName: "Distance from Center",
+                render: function(distance) {
+                    return parseFloat(distance).toFixed(2) + "km";
+                }
             },
+            chapelPath: { noDisplay: true },
             chapelDistance: {
-                render: function() {
-                    return parseFloat(Areas.chapelDistance).toFixed(2) + "km";
-                },
-                getValueToSave: function() {
-                    //chapelPath will send the callback for chapelDistance
-                },
-                defaultValue: 0
+                displayName: "Distance from Chapel",
+                render: function(distance) {
+                    return parseFloat(distance).toFixed(2) + "km";
+                }
             },
-            chapelPath: {
-                noDisplay: true,
-                getValueToSave: function(callback) {
-                    getChapelPath(false, function() {
-                        Areas.setValueToSave("chapelPath", Areas.chapelPath);
-                        Areas.setValueToSave("chapelDistance", Areas.chapelDistance);
-                    });
+            changeBoundaries: {
+                displayName: "Change Area Boundaries",
+                render: function() {
+                    var a = document.createElement("A");
+                    a.href = "#Change Area Boundaires";
+                    a.textContent = "Click to add boundaries...";
+                    a.addEventListener("click", Areas.changeBoundaries, false);
+                    return a;
                 }
             }
         },
         onOpen: function(itemIndex) {
             if(!Areas.currentItem) return;
-            //Get flat object
-            for(var i = 0; i < Flats.items.length; i++) {
-                if(Flats.items[i].name == Areas.currentItem.flat) {
-                    Areas.flat = Flats.items[i];
-                    break;
-                }
+            if(Areas.currentItem.chapelPath.length) {
+                Areas.chapelPathPoly.setPath(Areas.currentItem.chapelPath);
+                Areas.chapelPathPoly.show();
             }
-            //Create edit boundaries
-            var boundaries = Areas.currentItem.boundaries;
-            for(var i = 0; i < boundaries.length; i++) {
-                addBoundaryMarker(boundaries[i]);
+            if(Areas.currentItem.poly) {
+                Areas.currentItem.poly.setOptions({
+                    strokeColor: '#6666FF',
+                    fillColor: '#6666FF',
+                    fillOpacity: 0.15,
+                    zIndex: 1
+                });
+                Areas.currentItem.poly.pan();
             }
-            updateBoundary();
-            //Areas.areaSize = Areas.currentItem.size;
-            //Areas.centroidDistance = Areas.currentItem.centroidDistance;
-            Areas.chapelDistance = Areas.currentItem.chapelDistance;
-            
-            Areas.chapelPathPoly = new map.Polyline({
-                show: true,
-                path: Areas.currentItem.chapelPath,
-                strokeColor: '#66FF66',
-                strokeOpacity: 0.5,
-                strokeWeight: 4,
-                clickable: false
-            });
-            Areas.currentItem.poly.setOptions({
-                strokeColor: '#6666FF',
-                fillColor: '#6666FF',
-                fillOpacity: 0.15,
-                zIndex: 1
-            });
-            
-            map.pan(centroid.getPosition());
         },
         onClose: function() {
             if(Areas.currentItem) {
-                Areas.currentItem.poly.setOptions({
-                    strokeColor: '#FF6666',
-                    fillColor: areaSettings.fillColor,
-                    fillOpacity: areaSettings.fillOpacity,
-                    zIndex: 0
-                });
+                if(Areas.currentItem.poly) {
+                    Areas.currentItem.poly.setOptions({
+                        strokeColor: '#FF6666',
+                        fillColor: areaSettings.fillColor,
+                        fillOpacity: areaSettings.fillOpacity,
+                        zIndex: 0
+                    });
+                }
+                else if(Areas.splitLine) {
+                    Areas.splitLine.hide();
+                    Areas.splitting = false;
+                }
             }
         },
         onAllClose: function() {
             if(areaPoly) removeAreaPoly();
             if(Areas.chapelPathPoly) Areas.chapelPathPoly.hide();
-            Areas.areaSize = Areas.centroidDistance = Areas.chapelDistance = 0;
-        },
-        onEdit: function() {
-            $.each(areaBoundaries, function(index, boundary) {
-                boundary.show();
-            });
-            Areas.centroidDistance = getCentroidDistance();
-            areaPoly.show();
-            Areas.currentItem.poly.hide();
-        },
-        onEditCancel: function() {
-            removeAreaPoly();
-            for(var i = 0; i < Areas.currentItem.boundaries; i++) {
-                addBoundaryMarker(Areas.currentItem.boundaries[i]);
-            }
-            resetAreaPoly(Areas.currentItem);
-        },
-        onCreate: function() {
-            areaPoly.show();
-        },
-        onCreateCancel: function() {
-            removeAreaPoly();
-        },
-        onRemove: function() {
-            Areas.currentItem.label.hide();
-            Areas.currentItem.poly.show();
         },
         onInitialise: function(items) {
             for(var i = 0; i < items.length; i++) {
@@ -781,23 +773,47 @@ function initialise() {
                 
                 //Make sure it is openable
                 function check(field, defaultValue) {
-                    if(area[field] === undefined) {
+                    if(area[field] === undefined || area[field] == null) {
                         area[field] = defaultValue;
                         console.log("Field undefined: " + field + " in " + area.name);
                     }
                 }
+                check("district", "");
+                check("zone", "");
+                check("unit", "");
                 check("flat", "");
-                check("flat", "");
+                check("missionaries", "");
                 check("boundaries", []);
+                check("areaSharedWith", []);
                 check("size", 0);
-                check("centroid", [0, 0]);
+                check("centroid", [ 0, 0 ]);
                 check("centroidDistance", 0);
-                check("chapelDistance", 0);
                 check("chapelPath", []);
-                
-                initAreaPoly(area);
-            };
-            return items;
+                check("chapelDistance", 0);
+            }
+            Areas.findUnits();
+            Areas.findFlats();
+        },
+        onUpload: function(data, callback) {
+            var dbData = [];
+            for(var i = 0; i < data.length; i++) {
+                var line = data[i];
+                dbData.push({
+                    name: line[0],
+                    district: line[1],
+                    zone: line[2],
+                    unit: line[3],
+                    flat: line[4],
+                    missionaries: line[5],
+                    boundaries: null,
+                    size: null,
+                    centroid: null,
+                    centroidDistance: null,
+                    chapelPath: null,
+                    chapelDistance: null
+                });
+            }
+            callback(dbData);
         },
         variables: {
             areaSize: 0,
@@ -805,7 +821,248 @@ function initialise() {
             chapelDistance: 0,
             chapelPath: [],
             chapelPathPoly: null,
-            flat: null
+            flat: null,
+            findUnits: function() {
+                var areas = Areas.items, units = Wards.items;
+                if(!areas.length || !units.length) return;
+                for(var a = 0; a < areas.length; a++) {
+                    var area = areas[a];
+                    var unit = area.unit = getItemBy(units, "name", area.unit);
+                    if(unit && !area.boundaries.length) {
+                        area.missingBoundaries = true;
+                        if(unit.sharedPoly) {
+                            area.poly = unit.sharedPoly;
+                            area.poly.areas.push(area.name);
+                            area.poly.label.setTitle(area.poly.areas.join(" / "));
+                            continue;
+                        }
+                        else area.boundaries = map.clonePath(unit.boundaries);
+                    }
+                    else if(!area.boundaries.length) continue;
+                    
+                    //Draw area boundaries on map
+                    area.points = [];
+                    for(var i = 0; i < area.boundaries.length; i++) {
+                        area.points.push(area.boundaries[i]);
+                    }
+                    area.poly = new map.Polygon({
+                        show: Areas.visible,
+                        paths: area.points,
+                        strokeColor: '#FF6666',
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: areaSettings.fillColor,
+                        fillOpacity: areaSettings.fillOpacity,
+                        clickable: true
+                    });
+                    if(area.missingBoundaries) unit.sharedPoly = area.poly;
+                    Areas.mapElements.push(area.poly);
+                    area.poly.on('click', function(e) {
+                        Areas.open(this.areas[0]);
+                    });
+                    area.poly.areas = [ area.name ];
+                    area.poly.label = new map.Label({
+                        show: Areas.visible,
+                        position: calculateCentroid(area.points),
+                        title: area.name
+                    });
+                    Areas.mapElements.push(area.poly.label);
+                }
+                Areas.calculateMissingFields();
+            },
+            findFlats: function() {
+                var areas = Areas.items, flats = Flats.items;
+                if(!areas.length || !flats.length) return;
+                for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
+                    var area = areas[a];
+                    var areaName = areas[a].name;
+                    var found = false;
+                    for(var b = 0, flatLength = flats.length; b < flatLength; b++) {
+                        var flat = flats[b];
+                        var flatAreas = flat.areas;
+                        for(var c = 0, flatAreaLength = flatAreas.length; c < flatAreaLength; c++) {
+                            var flatArea = flatAreas[c];
+                            if(areaName == flatArea) {
+                                area.flat = flat;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if(found) break;
+                    }
+                }
+                Areas.calculateMissingFields();
+            },
+            //Calculates any missing fields from each area and updates the database
+            calculateMissingFields: function() {
+                var areas = Areas.items;
+                for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
+                    var area = areas[a];
+                    if(!area.size && area.unit && area.unit.boundaries) {
+                        area.size = getArea(area.unit.boundaries);
+                        console.log("Area '" + area.name + "' size calculated at " + area.size + "km2!");
+                    }
+                    if(!area.centroid[0] && (area.boundaries && area.boundaries.length || area.unit && area.unit.boundaries && area.unit.boundaries.length)) {
+                        var boundaries = area.boundaries && area.boundaries.length ? area.boundaries : area.unit.boundaries;
+                        area.centroid = calculateCentroid(boundaries);
+                        console.log("Area '" + area.name + "' centroid calculated at " + area.centroid + "!");
+                    }
+                    if(!area.centroidDistance && area.centroid[0] && area.flat && area.flat.position) {
+                        area.centroidDistance = getDistance(area.centroid, area.flat.position);
+                        console.log("Area '" + area.name + "' centroid distance calculated at " + area.size + "km!");
+                    }
+                    if(!area.chapelDistance && area.chapel && area.chapel.address && area.flat && area.flat.address) {
+                        map.getDirections({
+                            origin: area.flat.address,
+                            destination: area.chapel.address,
+                            callback: Areas.chapelDistanceCallback
+                        });
+                    }
+                }
+            },
+            chapelDistanceCallback: function(result) {
+                var path = result[0].path;
+                Areas.chapelPathPoly = new map.Polyline({
+                    show: show,
+                    path: path
+                });
+                for(var i = 1, pathLength = path.length; i < pathLength; i++) {
+                    distance += getDistance(path[i - 1], path[i]);
+                }
+                area.chapelPath = path;
+                area.chapelDistance = distance;
+                console.log("Area '" + area.name + "' chapel distance calculated at " + distance + "km!");
+            },
+            changeBoundaries: function(e) {
+                e.preventDefault();
+                AreaSplits.splitArea(Areas.currentItem);
+            },
+            chapelPathPoly: new map.Polyline({
+                show: false,
+                strokeColor: '#66FF66',
+                strokeOpacity: 0.5,
+                strokeWeight: 4,
+                clickable: false
+            }),
+            areaPoly: new map.Polygon({
+                show: false,
+                strokeColor: '#FF6666',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: areaSettings.fillColor,
+                fillOpacity: areaSettings.fillOpacity,
+                clickable: false
+            }),
+            areaLabel: new map.Label({
+                show: true,
+                position: [ 0, 0 ],
+                title: "Area"
+            })
+        }
+    });
+    
+    AreaSplits = new Form({
+        name: "areaSplit",
+        displayName: "Area Split Lines",
+        noDisplay: true,
+        noDb: true,
+        onOpen: function() {
+            var area = AreaSplits.area;
+            var unit = area.unit;
+            Form.currentForm.textContent = area.name;
+        },
+        variables: {
+            area: null,
+            line: null,
+            wardPath: null,
+            areaPoly: new map.Polygon({
+                show: false,
+                strokeColor: "#6666FF",
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: areaSettings.fillColor,
+                fillOpacity: areaSettings.fillOpacity,
+                clickable: false
+            }),
+            areaLabel: new map.Label({}),
+            sharedPoly: new map.Polygon({
+                show: false,
+                strokeColor: "#FF6666",
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: "#FF6666",
+                fillOpacity: areaSettings.fillOpacity,
+                clickable: false
+            }),
+            sharedLabel: new map.Label({}),
+            splitArea: function(area) {
+                AreaSplits.area = area;
+                AreaSplits.open();
+            },
+            addSplit: function() {
+                var area = AreaSplits.area;
+                var poly = area.poly;
+                if(!poly) return;
+                if(AreaSplits.line) AreaSplits.line.hide();
+                var wardPath;
+                AreaSplits.wardPath = wardPath = poly.getPath();
+                var startPosition = map.clonePosition(wardPath[0]);
+                var endPosition = map.clonePosition(wardPath[Math.floor(wardPath.length / 2)]);
+                AreaSplits.line = new map.Polyline({
+                    show: true,
+                    path: [ startPosition, endPosition ],
+                    strokeColor: "#0F0",
+                    strokeOpacity: 0.8,
+                    strokeWeight: 4,
+                    clickable: false,
+                    editable: true,
+                    snapEndsToPath: AreaSplits.wardPath,
+                    snapDragEnd: AreaSplits.calculateAreaBoundaries,
+                    zIndex: 100
+                });
+                //Update area labels
+                Areas.areaPoly.hide();
+                Areas.areaLabel.hide();
+                var sharedNames = [], shared = area.poly.shared;
+                for(var i = 0; i < shared.length; i++) {
+                    if(shared != area) sharedNames.push(shared.name);
+                }
+                AreaSplits.sharedLabel.setOptions({ title: sharedNames.join(" / ") });
+                AreaSplits.areaLabel.setOptions({ title: AreaSplits.area.name });
+                AreaSplits.calculateAreaBoundaries();
+            },
+            calculateAreaBoundaries: function() {
+                function same(pointA, pointB) {
+                    return pointA[0] == pointB[0] && pointA[1] == pointB[1];
+                }
+                var path = [], sharedPath = [];
+                var linePath = AreaSplits.line.getPath();
+                var wardPath = AreaSplits.wardPath;
+                var wardPathLength = wardPath.length;
+                var linePathLength = linePath.length;
+                var firstPoint = linePath[0];
+                var lastPoint = linePath[linePath.length - 1];
+                //Add split line to the boundary
+                for(var i = 0; i < linePathLength; i++) path.push(linePath[i]);
+                //Find where the split line meets the ward boundary
+                var i = -1, index;
+                while(!same(wardPath[++i], lastPoint)) {}
+                //Follow the ward boundary to where it meets the split line again
+                while(!same(wardPath[index = ++i % wardPathLength], firstPoint)) {
+                    path.push(wardPath[index]);
+                }
+                AreaSplits.areaPoly.setOptions({ paths: path });
+                AreaSplits.areaLabel.setPosition(calculateCentroid(path));
+                //Update the old shared boundary
+                var wardPathStart = index;
+                for(var i = linePathLength; i--;) sharedPath.push(linePath[i]);
+                var i = wardPathStart, index;
+                while(!same(wardPath[index = ++i % wardPathLength], lastPoint)) {
+                    sharedPath.push(wardPath[index]);
+                }
+                AreaSplits.sharedPoly.setOptions({ paths: sharedPath });
+                AreaSplits.sharedLabel.setPosition(calculateCentroid(sharedPath));
+            }
         }
     });
     
@@ -908,12 +1165,10 @@ function getArea(points) {
     var a = 0;
     for (var i = 0; i < points.length; ++i) {
         var j = (i + 1) % points.length;
-        var xi = points[i].getPosition()[1] * metersPerDegree *
-            Math.cos(points[i].getPosition()[0] * radiansPerDegree);
-        var yi = points[i].getPosition()[0] * metersPerDegree;
-        var xj = points[j].getPosition()[1] * metersPerDegree *
-            Math.cos(points[j].getPosition()[0] * radiansPerDegree);
-        var yj = points[j].getPosition()[0] * metersPerDegree;
+        var xi = points[i][1] * metersPerDegree * Math.cos(points[i][0] * radiansPerDegree);
+        var yi = points[i][0] * metersPerDegree;
+        var xj = points[j][1] * metersPerDegree * Math.cos(points[j][0] * radiansPerDegree);
+        var yj = points[j][0] * metersPerDegree;
         a += xi * yj - xj * yi;
     }
     return (Math.abs(a / 2.0) / 1000000);
@@ -925,6 +1180,20 @@ function capitalise(text) {
     });
 }
 
-function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
+function getItemBy(items, property, value) {
+    for(var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if(item[property] == value) return item;
+    }
+    return null;
 }
+function getItemsBy(items, property, value) {
+    var values = [];
+    for(var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if(item[property] == value) values.push(item);
+    }
+    return values;
+}
+
+function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
