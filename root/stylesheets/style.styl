@@ -4,11 +4,6 @@
 @import 'nib'
 
 /*
- * Grab a custom font from Google
- */
-@import url('http://fonts.googleapis.com/css?family=Quicksand')
-
-/*
  * Nib provides a CSS reset
  */
 global-reset()
@@ -21,23 +16,23 @@ main-color = #fff
 background-color = #eee
 
 body
-  font-family 'Georgia'
+  font-family Arial, "Helvetica Neue", Helvetica, sans-serif
   background-color background-color
   color #444
   
   h1
-    font-family 'Quicksand'
+    font-family Futura, "Trebuchet MS", Arial, sans-serif
     margin 13px 10px 4px
     padding-bottom 10px
     border-bottom 1px dotted #ddd
     border-radius 2px 2px 0px 0px
     margin-bottom 10px
-    font-size 1.1em
+    font-size 1.8em
   
   h2
-    font-family 'Quicksand'
+    font-family Futura, "Trebuchet MS", Arial, sans-serif
     margin 8px 0
-    font-size 1em
+    font-size 1.4em
     font-weight bold
   
   #zones
@@ -102,7 +97,8 @@ header
   margin 8px 4px
 
 #user
-  float right
+  position absolute
+  right 0
   padding 8px
 
 .cardOrder
@@ -111,6 +107,9 @@ header
 .main-content
   margin-left 200px
   font-size 0.9em
+  
+  .success
+    color #090
   
   th
     font-weight bold
@@ -318,12 +317,7 @@ header
     text-align center
 
     h1
-      font-family 'Quicksand'
-      margin 13px 10px 4px
-      padding-bottom 10px
-      border-bottom 1px dotted #ddd
-      border-radius 2px 2px 0px 0px
-      margin-bottom 10px
+      font-size 24px
 
     ul
       font-size 13px
@@ -334,7 +328,8 @@ header
       margin-bottom 8px
     
     a
-      color #bbf
+      color #88f
+      font-size 12px
 
 p
   line-height 1.8

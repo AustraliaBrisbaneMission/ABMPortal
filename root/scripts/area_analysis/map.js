@@ -273,7 +273,10 @@ var Map = function(element) {
         obj.show = function() {
             if(obj.visible) return;
             obj.visible = true;
-            for(var i = 0; i < mapObjects.length; i++) mapObjects[i].setMap(map);
+            for(var i = 0; i < mapObjects.length; i++) {
+                var mapObject = mapObjects[i];
+                if(!mapObject.hidden) mapObject.setMap(map);
+            }
         };
         obj.hide = function() {
             if(!obj.visible) return;

@@ -107,13 +107,13 @@ function submitRecommendation() {
     var data = JSON.stringify(recommendations);
     document.getElementById('submit_button').value = "Submitting...";
     document.getElementById('submit_button').disabled = true;
-    ajax("/recommendations/submit", function(response) {
+    $.post("/recommendations/submit", data, function(response) {
         if(response != "OK") {
             console.log("Response = " + response);
             document.getElementById('submit_button').value = "Submit Recommendations";
             document.getElementById('submit_button').disabled = false;
         }
         else window.location = "/recommendations/success";
-    }, data, "application/json");
+    });
     console.log(data);
 }

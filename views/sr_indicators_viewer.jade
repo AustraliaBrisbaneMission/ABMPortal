@@ -1,0 +1,18 @@
+extend layout
+
+block head
+  title Senior Couple Indicators - #{siteName}
+  script(src="/scripts/sr_indicators.js" type="text/javascript")
+  link(rel="stylesheet" href="/stylesheets/indicators_view.css")
+
+block content
+  div#header
+    h1 Senior Couple Indicators
+    span#message
+  div#result_box
+    p Loading...
+  h2 Indicators
+  div#adminIndicators
+  a#addLink(href="#Add Indicator") Add new indicator...
+  div
+    button#submitButton Save Indicators

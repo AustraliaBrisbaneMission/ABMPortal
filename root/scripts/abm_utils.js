@@ -80,18 +80,22 @@ $.create = function(elementTagName, options, children) {
 //Miscellaneous
 $.each = function(obj, iteratorFunction) {
     if(obj instanceof Array) {
-        for(var i = 0, l = obj.length; i < l; i++) iteratorFunction(obj[i], i);
+        for(var i = 0, l = obj.length; i < l; i++) {
+            if(iteratorFunction(obj[i], i) === false) return;
+        }
     }
-    else for(var key in obj) iteratorFunction(obj[key], key);
+    else for(var key in obj) {
+        if(iteratorFunction(obj[key], key) === false) return;
+    }
 };
-$.eachSorted = function(obj, iteratorFunction) {
-    var items = $.keySort(obj, true);
+$.eachSorted = function(obj, iteratorFunction, descending) {
+    var items = $.keySort(obj, true, descending);
     for(var i = 0, l = items.length; i < l; i++) {
         var item = items[i];
         iteratorFunction(item.value, item.key);
     }
 };
-$.keySort = function(obj, byKey) {
+$.keySort = function(obj, byKey, descending) {
     var getValues = byKey ?
         function(a, b) { return { a: a.key, b: b.key }; } :
         function(a, b) { return { a: a.value, b: b.value }; };
@@ -99,8 +103,8 @@ $.keySort = function(obj, byKey) {
     for(var key in obj) items.push({ value: obj[key], key: key });
     items.sort(function(a, b) {
         var values = getValues(a, b);
-        if(values.a > values.b) return 1;
-        if(values.a < values.b) return -1;
+        if(values.a > values.b) return descending ? -1 : 1;
+        if(values.a < values.b) return descending ? 1 : -1;
         return 0;
     });
     return items;

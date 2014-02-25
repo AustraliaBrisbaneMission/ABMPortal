@@ -1,0 +1,32 @@
+extend layout
+
+block head
+  title Import / Export - #{siteName}
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
+  script(src="/scripts/ucsv-1.1.0-min.js" type="text/javascript")
+  script(src="/scripts/import.js" type="text/javascript")
+  script(src="/scripts/xml2json.js" type="text/javascript")
+
+block content
+  div
+    span Save as 'CSV (comma delimited)' before importing:
+    button#ki_delete CLEAR INDICATOR DATABASE
+  h1 Import
+  div#imports
+  h1 Export
+  div
+    ul
+      li
+        a(href="/standards/standards.csv") Download Standards of Excellence for Importing into the Access Database (CSV)
+      li
+        a(href="/import/indicators.csv") Download Database for Excel (CSV)
+      li
+        a(href="/import/indicators.csv?months=y") Download Indicators by Month (CSV)
+      li
+        a(href="/import/indicators2.csv") Download Database for Elder Sherrard (CSV)
+      li
+        a(href="/import/indicators2.csv?months=y") Download Database for Elder Sherrard by Month (CSV)
+      li
+        a(href="/import/stake_effectiveness_data.csv") Download Stake Effectiveness Report Data (Indicators by Ward/Stake per month)
+      li
+        a(href="/import/effectiveness_data.csv") Download Effectiveness Report Data (Indicators by Area for last 3 weeks)

@@ -3,7 +3,6 @@ extend layout
 block head
   title Recommendations - #{siteName}
   script(src="/scripts/recommendations.js" type="text/javascript")
-  script(src="/scripts/ajax.js" type="text/javascript")
   script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
   script(type="text/javascript" src="https://code.jquery.com/ui/1.10.3/jquery-ui.js")
   script(src="/scripts/json2.js" type="text/javascript")
@@ -17,9 +16,9 @@ block content
   form#recommendations
     div
       span Zone:
-      input(type="text" name="zone" value="#{username}" disabled="true")
+      input(type="text" name="zone" value="#{zoneName}")
       span Zone Leader:
-      input(type="text" name="zone_leader")
+      input(type="text" name="zone_leader" value="#{zoneLeader}")
     div
       div#areas
       input(type="button" value="Add Area" onclick="addArea()")

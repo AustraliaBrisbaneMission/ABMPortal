@@ -17,6 +17,11 @@ block content
       input#packCount(type="text" name="packs" value="#{values.packs}" disabled=success)
       span#totalCost
     div
+      h2 Business Card Holder
+      span Slim black box that holds 20 business cards. (1 Holder = $#{holderPrice})
+      br
+      input#holderCount(type="text" name="holders" value="#{values.holders}" disabled=success)
+    div
       h2 NAME
       h3 [ELDER or SISTER][FIRST NAME][LAST NAME]
       span Total of 35 Characters (including spaces)
@@ -47,12 +52,21 @@ block content
     script.
       var price = #{price}, packCount = document.getElementById('packCount');
       function costChanged() {
-          var cost = (#{price} * parseInt(packCount.value)).toFixed(2);
+          var packCost = #{price} * parseInt(packCount.value);
+          var holderCost = #{holderPrice} * parseInt(holderCount.value);
           if(cost == "NaN") {
               packCount.value = 1;
               costChanged();
           }
-          else document.getElementById('totalCost').textContent = " = $" + cost;
+          else if(holderCost == "NaN") {
+              holderCount.value = 1;
+              costChanged();
+          }
+          else {
+              var cost = (packCost + holderCost).toFixed(2);
+              document.getElementById('totalCost').textContent = " = $" + cost;
+          }
       }
       packCount.addEventListener('change', costChanged, false);
+      holderCount.addEventListener('change', costChanged, false);
       costChanged();

@@ -1,0 +1,98 @@
+extend layout
+
+block head
+  title Hastening the Work Report Viewer - #{siteName}
+  link(rel='stylesheet' href='/stylesheets/hastening.css')
+  script(type="text/javascript") var User = { zone: "#{zone}" };
+  script(src="/scripts/hastening_view.js" type="text/javascript")
+
+block content
+  form#wrapper(method="POST" action="/hastening/submit")
+    div#report
+      div.header
+        img(src="/stylesheets/images/abm.png")
+        div
+          h1.heading.big Stake Hastening the Work Report
+          //input.stake.big(type="text" name="stake" placeholder="[Stake Here]" value="#{stake}")
+          span#stake.big #{stake} Stake
+        div.underline
+          span#president President
+          span.goal Goal
+          span#goal
+          span.right (Stake President / Zone Leader Missionary Analysis)
+        div
+          span Zone Leaders:
+          span#zoneLeaders
+          span#date.right
+      table#units
+        tr
+          th(rowspan=3) Ward / Branch
+          th(rowspan=2 colspan=2) Number of Missionaries
+          th(rowspan=3) Has Ward Mission Plan?
+          th(rowspan=3) Has WMP Been Referenced in Ward Council?
+          th(rowspan=3) Total Lessons With a Member Present
+          th(rowspan=3) Average Number of Investigators at Church per Week
+          th(rowspan=3) Number of HT Families Assigned to Missionaries
+          th(colspan=3) Reactivation and Rescue Efforts (15 Names)
+          th(rowspan=3) Number of Successful Rescue Visits
+          th.comments(rowspan=3) Needs and Concerns
+        tr
+          th(rowspan=2) Number of Names
+          th(rowspan=2) Number Invited by Ward
+          th(rowspan=2) Number Being Taught
+        tr
+          th Ward
+          th Full-Time
+        - for(var i = 1; i < 20; i++)
+          tr(id="unit" + i class=(i % 2 ? "band" : "") style="display:none")
+            td(id="unit" + i + "_name")
+            td(id="unit" + i + "_wardMissionaries")
+            td(id="unit" + i + "_fullTimeMissionaries")
+            td(id="unit" + i + "_hasWardMissionPlan")
+            td(id="unit" + i + "_hasBeenReferenced")
+            td(id="unit" + i + "_memberPresents")
+            td(id="unit" + i + "_investigatorsAtChurch")
+            td(id="unit" + i + "_missionaryHomeTeaching")
+            td(id="unit" + i + "_numberNames")
+            td(id="unit" + i + "_numberInvited")
+            td(id="unit" + i + "_numberBeingTaught")
+            td(id="unit" + i + "_rescueVisits")
+            td(id="unit" + i + "_needsAndConcerns")
+      table#baptisms
+        tr
+          td.baptismsLabel(rowspan=22)
+          th.wardNames.biggish Stake Wards
+          th WMP Date Last Reviewed
+          th.biggish JAN
+          th.biggish FEB
+          th.biggish MAR
+          th.biggish APR
+          th.biggish MAY
+          th.biggish JUN
+          th.biggish JUL
+          th.biggish AUG
+          th.biggish SEP
+          th.biggish OCT
+          th.biggish NOV
+          th.biggish DEC
+          th Year to Date
+          th.biggish Goal
+          th.biggish Remaining
+        - for(var i = 1; i < 20; i++)
+          tr(id="unit" + i + "_baptisms" class=(i % 2 ? "band" : "") style="display:none")
+            td(id="unit" + i + "_name2")
+            td(id="unit" + i + "_dateReviewed")
+            - for(var month = 1; month <= 12; month++)
+              td(id="unit" + i + "_month" + month)
+            td(id=unit + "_ytd")
+            td(id="unit" + i + "_goal")
+            td(id="unit" + i + "_remaining")
+        tr(class="totals")
+          td(colspan=2) Total
+          - for(var month = 1; month <= 12; month++)
+            td(id="total" + month)
+          td#total_ytd
+          td#total_goal
+          td#total_remaining
+    button#submitButton Submit Report
+  div#reports Loading...

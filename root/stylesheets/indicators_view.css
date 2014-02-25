@@ -1,0 +1,36 @@
+#result_box {
+  border: 1px solid #000;
+  background-color: #fff;
+  overflow-x: auto;
+}
+#result_box table {
+  border-collapse: collapse;
+  color: #000;
+  font-size: 12px;
+}
+#result_box table .goalRow,
+#result_box table .actualRow {
+  height: 18px;
+  border: 1px solid #999;
+}
+#result_box table .goalRow {
+  color: #666;
+  background-color: #ccf;
+}
+#result_box table .actualRow,
+#result_box table .missionary,
+#result_box table .date {
+  background-color: #fff;
+  border: 1px solid #999;
+}
+#result_box table th,
+#result_box table td {
+  padding: 2px;
+  text-align: center;
+}
+.nameInput {
+  width: 200px;
+}
+.descriptionInput {
+  width: 500px;
+}

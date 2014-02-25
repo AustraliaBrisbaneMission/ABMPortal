@@ -28,9 +28,10 @@ var areaSettings = {
     fillColor: '#FF6666',
     fillOpacity: 0.1
 };
+zip.workerScriptsPath = "/scripts/";
 
 //Forms
-var Chapels, Flats, Areas, Wards, Directions, Missionaries, AreaSplits;
+var Chapels, Flats, Areas, Units, Directions, Missionaries, AreaSplits;
 
 function getChapelPath(show, callback) {
     var distance = 0;
@@ -360,23 +361,22 @@ function initialise() {
         }
     });
     
-    WardLabels = new Form({ name: "Display Ward Labels:", show: false, noDb: true });
-    Wards = new Form({
+    UnitLabels = new Form({ name: "Display Unit Labels:", show: false, noDb: true });
+    Units = new Form({
         name: "ward",
-        displayName: "Wards",
+        displayName: "Units",
         show: false,
         fields: {
             name: { displayName: "Name" },
-            chapel: { displayName: "Chapel" },
-            boundaries: {
-                noDisplay: true,
-                getValueToSave: function() {
-                    Areas.setValueToSave("boundaries", Ward.boundaries);
-                }
-            }
+            chapel: {
+                displayName: "Chapel",
+                render: function(chapel) { return chapel.name; }
+            },
+            phone: { displayName: "Phone Number" },
+            boundaries: { noDisplay: true }
         },
         onOpen: function() {
-            Wards.currentItem.poly.pan();
+            Units.currentItem.poly.pan();
         },
         onInitialise: function(items) {
             var defaultColours = [
@@ -438,7 +438,7 @@ function initialise() {
                     colour = stakeColours[ward.stake];
                 }
                 ward.poly = new map.Polygon({
-                    show: Wards.visible,
+                    show: Units.visible,
                     paths: ward.boundaries,
                     strokeColor: ward.name == User.unit ? "#F33" : "#333",
                     strokeOpacity: 0.5,
@@ -449,21 +449,89 @@ function initialise() {
                     clickable: false,
                     pan: ward.name == User.unit
                 });
-                Wards.mapElements.push(ward.poly);
+                Units.mapElements.push(ward.poly);
                 ward.label = new map.Label({
-                    show: WardLabels.visible, //Showing labels adds lag
+                    show: UnitLabels.visible, //Showing labels adds lag
                     title: ward.name,
                     size: 12,
                     position: calculateCentroid(ward.boundaries)
                 });
-                WardLabels.mapElements.push(ward.label);
+                UnitLabels.mapElements.push(ward.label);
             }
             Areas.findUnits();
+            Units.findChapels();
         },
         variables: {
             boundaries: [],
             markers: [],
-            poly: null
+            poly: null,
+            findChapels: function() {
+                var chapels = Chapels.items, units = Units.items;
+                if(!chapels.length || !units.length) return;
+                for(var a = 0, length = units.length; a < length; a++) {
+                    var unit = units[a];
+                    unit.chapel = getItemBy(chapels, "name", unit.chapel);
+                }
+            },
+            uploaded: function(files) {
+                var unitsDone = {};
+                var units = [];
+                for(var a = 0; a < files.length; a++) {
+                    var kml = X2J.parseXml(files[a])[0].kml[0].Document[0].Folder[0];
+                    if(kml.name[0].jValue != "Ward_Boundaries") continue;
+                    for(var b = 0; b < kml.Placemark.length; b++) {
+                        var ward = kml.Placemark[b];
+                        var name = ward.name[0].jValue;
+                        var branch = false;
+                        if(name.substr(-5) == " Ward") {
+                            name = name.substr(0, name.length - 5);
+                        }
+                       else if(name.substr(-7) == " Branch") {
+                            name = name.substr(0, name.length - 7);
+                            branch = true;
+                        }
+                        else console.log("Unknown Ward: " + name);
+                        if(unitsDone[name]) continue;
+                        unitsDone[name] = true;
+                        var stake = "", unitId = "";
+                        var info = ward.ExtendedData[0].SchemaData[0].SimpleData;
+                        for(var c = 0; c < info.length; c++) {
+                            var data = info[c];
+                            if(data.jAttr.name == "Unit_Number") unitId = data.jValue;
+                            else if(data.jAttr.name == "Parent_Organization") {
+                                stake = data.jValue;
+                            }
+                        }
+                        var boundaries = [];
+                        var coordinates = ward.MultiGeometry[0];
+                        if(!coordinates.Polygon) coordinates = coordinates.MultiGeometry[0];
+                        coordinates = coordinates.Polygon[0].outerBoundaryIs[0].LinearRing[0].coordinates[0].jValue;
+                        coordinates = coordinates.split(' ');
+                        for(var c = 0, length = coordinates.length; c < length; c++) {
+                            var point = coordinates[c].split(',');
+                            if(point[0] && point[1]) {
+                                boundaries.push([
+                                    parseFloat(point[1]),
+                                    parseFloat(point[0])
+                                ]);
+                            }
+                        }
+                        units.push({
+                            name: name,
+                            branch: branch,
+                            chapel: null,
+                            stake: stake,
+                            unitId: unitId,
+                            boundaries: boundaries
+                        });
+                    }
+                }
+                console.log("Uploading units...");
+                var data = { units: units };
+                $.post("/area_analysis/units", data, function(result) {
+                    console.log("Success!");
+                });
+            }
         }
     });
     
@@ -475,7 +543,7 @@ function initialise() {
             address: { displayName: "Address" },
             areas: {
                 displayName: "Areas",
-                render: function(areas) { return areas.join(" / "); }
+                render: function(areas) { return areas ? areas.join(" / ") : ""; }
             },
             id: { displayName: "IMOS Housing ID" },
             position: {
@@ -488,6 +556,7 @@ function initialise() {
                 }
             }
         },
+        labels: true,
         onOpen: function(itemIndex) {
             Flats.currentItem.marker.setOptions({ icon: icons.flatHighlight });
             map.pan(Flats.currentItem.marker.getPosition());
@@ -640,18 +709,7 @@ function initialise() {
             }
             return chapel;
         },
-        onUpload: function(data, callback) {
-            var dbData = [];
-            for(var i = 0; i < data.length; i++) {
-                var line = data[i];
-                dbData.push({
-                    name: line[0],
-                    address: line[1],
-                    position: null
-                });
-            }
-            callback(dbData);
-        }
+        onInitialise: Units.findChapels
     });
     
     Missionaries = new Form({
@@ -664,8 +722,8 @@ function initialise() {
         },
         onOpen: function(itemIndex) {
             var wardName = Missionaries.currentItem.ward;
-            for(var i = 0; i < Wards.items.length; i++) {
-                var ward = Wards.items[i];
+            for(var i = 0; i < Units.items.length; i++) {
+                var ward = Units.items[i];
                 if(ward.name == wardName) ward.poly.pan();
             }
         }
@@ -698,6 +756,14 @@ function initialise() {
             flat: {
                 displayName: "Flat",
                 render: function(flat) { return flat.name; }
+            },
+            chapel: {
+                displayName: "Chapel",
+                render: function() {
+                    var unit = Areas.currentItem.unit;
+                    if(!unit) return;
+                    return unit.chapel ? unit.chapel.address : "";
+                }
             },
             boundaries: { noDisplay: true },
             size: {
@@ -768,16 +834,16 @@ function initialise() {
             if(Areas.chapelPathPoly) Areas.chapelPathPoly.hide();
         },
         onInitialise: function(items) {
-            for(var i = 0; i < items.length; i++) {
-                var area = items[i];
-                
-                //Make sure it is openable
-                function check(field, defaultValue) {
-                    if(area[field] === undefined || area[field] == null) {
-                        area[field] = defaultValue;
-                        console.log("Field undefined: " + field + " in " + area.name);
-                    }
+            var area;
+            //Make sure it is openable
+            function check(field, defaultValue) {
+                if(area[field] === undefined || area[field] === null) {
+                    area[field] = defaultValue;
+                    console.log("Field undefined: " + field + " in " + area.name);
                 }
+            }
+            for(var i = 0; i < items.length; i++) {
+                area = items[i];
                 check("district", "");
                 check("zone", "");
                 check("unit", "");
@@ -794,27 +860,6 @@ function initialise() {
             Areas.findUnits();
             Areas.findFlats();
         },
-        onUpload: function(data, callback) {
-            var dbData = [];
-            for(var i = 0; i < data.length; i++) {
-                var line = data[i];
-                dbData.push({
-                    name: line[0],
-                    district: line[1],
-                    zone: line[2],
-                    unit: line[3],
-                    flat: line[4],
-                    missionaries: line[5],
-                    boundaries: null,
-                    size: null,
-                    centroid: null,
-                    centroidDistance: null,
-                    chapelPath: null,
-                    chapelDistance: null
-                });
-            }
-            callback(dbData);
-        },
         variables: {
             areaSize: 0,
             centroidDistance: 0,
@@ -823,7 +868,8 @@ function initialise() {
             chapelPathPoly: null,
             flat: null,
             findUnits: function() {
-                var areas = Areas.items, units = Wards.items;
+                function areaClick(e) { Areas.open(this.areas[0]); }
+                var areas = Areas.items, units = Units.items;
                 if(!areas.length || !units.length) return;
                 for(var a = 0; a < areas.length; a++) {
                     var area = areas[a];
@@ -857,9 +903,7 @@ function initialise() {
                     });
                     if(area.missingBoundaries) unit.sharedPoly = area.poly;
                     Areas.mapElements.push(area.poly);
-                    area.poly.on('click', function(e) {
-                        Areas.open(this.areas[0]);
-                    });
+                    area.poly.on("click", areaClick);
                     area.poly.areas = [ area.name ];
                     area.poly.label = new map.Label({
                         show: Areas.visible,
@@ -1069,32 +1113,49 @@ function initialise() {
     Form.initialiseForms();
     cluster = new Cluster(map);
     
-    /*
-    //Add ward boundaries
-    var files = [
-        "1945637-Ward_Boundaries",
-        "1945831-Ward_Boundaries",
-        "524484-Ward_Boundaries",
-        "525758-Ward_Boundaries",
-        "543004-Ward_Boundaries",
-        "601454-Ward_Boundaries",
-        "606022-Ward_Boundaries",
-        "608874-Ward_Boundaries",
-        "ABM-Ward_Boundaries",
-        "Brisbane North-Ward_Boundaries",
-        "Brisbane-Ward_Boundaries",
-        "EMP-Ward_Boundaries",
-        "Ipswich-Ward_Boundaries",
-        "Logan-Ward_Boundaries",
-        "River Terrace-Overlay_Boundaries"
-    ];
-    for(var i = 0; i < files.length; i++) {
-        var ward = new map.KML({ show: true });
-        var prefix = "http://transferrecommendations.tk/Boundaries/";
-        var suffix = ".kmz";
-        ward.open(prefix + files[i] + suffix);
+    //Settings menu
+    if(User.auth >= Auth.ADMIN) {
+        var menu = document.getElementById("settingsMenu");
+        var input = document.createElement("INPUT");
+        input.type = "file";
+        input.multiple = true;
+        input.addEventListener("change", function(e) {
+            e.preventDefault();
+            var files = e.target.files;
+            var results = [];
+            var currentFile = 0;
+            function readZip(file) {
+                function onError(message) { console.log("ZIP Error: " + message); }
+                zip.createReader(new zip.BlobReader(file), function(zipReader) {
+                    zipReader.getEntries(function(entries) {
+                        for(var i = 0; i < entries.length; i++) {
+                            var entry = entries[i];
+                            if(entry.filename != "doc.kml") continue;
+                            //Read file
+                            var writer = new zip.BlobWriter();
+                            entry.getData(writer, function(blob) {
+                                var reader = new FileReader();
+                                reader.addEventListener("loadend", function(e) {
+                                    results.push(e.target.result);
+                                    if(++currentFile >= files.length) Units.uploaded(results);
+                                    else readZip(files[currentFile]);
+                                });
+                                reader.readAsText(blob);
+                            });
+                            break;
+                        }
+                    });
+                }, onError);
+            }
+            if(files.length) readZip(files[0]);
+        }, false);
+        menu.appendChild(input);
+        document.getElementById("settings").addEventListener("click", function(e) {
+            e.preventDefault();
+            menu.visible = !menu.visible;
+            menu.style.display = menu.visible ? "" : "none";
+        }, false);
     }
-    */
 }
 window.addEventListener('load', initialise, false);
 

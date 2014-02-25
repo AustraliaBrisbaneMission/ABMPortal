@@ -2,6 +2,11 @@ extend layout
 
 block head
   title Home - #{siteName}
+  if indicators
+    link(rel="stylesheet" href="/stylesheets/indicators.css")
+    script(type="text/javascript" src="/scripts/indicators.js")
 
 block content
   p Welcome to the Australia Brisbane Mission Portal!
+  if indicators
+    include indicators.jade

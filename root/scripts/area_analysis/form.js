@@ -7,6 +7,7 @@ var Form = function(properties) {
     form.mapElements = properties.mapElements || [];
     form.noDisplay = properties.noDisplay || false;
     form.noDb = properties.noDb || false;
+    form.labels = properties.labels;
     form.items = [];
     form.ready = false;
     form.currentItem = null;
@@ -231,6 +232,30 @@ var Form = function(properties) {
         var heading = document.createElement('H3');
         heading.textContent = form.displayName;
         headingContainer.appendChild(heading);
+        //Show labels option
+        if(form.labels !== undefined) {
+            var toggle = document.createElement("A");
+            toggle.href = "#Toggle Labels";
+            toggle.className = "labelToggle";
+            function labelsToggled(e) {
+                e.preventDefault();
+                form.labels = !form.labels;
+                toggle.textContent = "Labels: " + (form.labels ? "On" : "Off");
+                var items = form.items;
+                for(var i = 0, length = items.length; i < length; i++) {
+                    var item = items[i];
+                    if(item.marker && item.marker.label) {
+                        var marker = item.marker;
+                        var label = marker.label;
+                        label.hidden = true;
+                        if(marker.visible) form.labels ? label.show() : label.hide();
+                    }
+                }
+            }
+            toggle.textContent = "Labels: " + (form.labels ? "On" : "Off");
+            toggle.addEventListener("click", labelsToggled, false);
+        }
+        //Show checkbox
         var show = form.showCheckbox = document.createElement('INPUT');
         show.type = "checkbox";
         show.addEventListener('change', function(e) {

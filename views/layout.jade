@@ -20,9 +20,23 @@ block body
       .widget
         h1 Links
         ul
+          li
+            a(href="/") Home
           if auth >= 2
             li
               a(href="/cards") Order Cards
+          if auth >= 5
+            li
+              a(href="/indicators/view") Senior Couple Indicators
+          if auth >= 5
+            li
+              a(href="/hastening") Hastening the Work Ward Report
+          if auth >= 5
+            li
+              a(href="/hastening/view") Hastening the Work Ward Report Viewer
+          if auth >= 5
+            li
+              a(href="/forms") Form Builder
           if auth >= 5
             li
               a(href="/store") Storeroom
@@ -40,7 +54,7 @@ block body
               a(href="/callsheet") Callsheet
           if auth >= 5
             li
-              a(href="/imos") IMOS
+              a(href="/import") Import / Export
           if auth >= 5
             li
               a(href="/historical_data" target="_blank") Historical Data
