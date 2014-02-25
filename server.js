@@ -33,17 +33,39 @@ var Config = {
     },
     cards: {
         price: "",
+        holderPrice: "",
         printerName: "",
         printerEmail: "",
         financeName: "",
         financeEmail: ""
     },
     standards: { elder: {}, sister: {} },
-    imos: {
-        startDate: new Date("2013-08-01"),
-        latestDate: new Date("2013-08-01"),
-        latestUpdate: new Date("2013-08-01"),
-        daysUntilNextUpdate: 1
+    indicators: {
+        startDate: "2013-07-15",
+        latestDate: "2013-07-15",
+        latestUpdate: "2013-08-01",
+        daysUntilNextUpdate: 1,
+        displayWeeks: 6
+    },
+    chapels: { lastUpdate: new Date("2013-08-01") },
+    seniors: {
+        indicators: [
+            { id: 0, name: "Recent Convert Lessons", description: "Lessons taught to recent converts" },
+            { id: 1, name: "Less-Active Lessons", description: "Lessons taught to less-active members" },
+            { id: 2, name: "Investigator Lessons", description: "Lessons taught to investigators" },
+            { id: 3, name: "Member Present Lessons", description: "Lessons taught with a member present" },
+            { id: 4, name: "Missionary Lessons", description: "Lessons taught to investigators with young missionaries" },
+            { id: 5, name: "Service Hours", description: "Weekly service hours (meals prepared for others, service projects, branch service hours, talents shared, ordinations performed, etc.)" },
+            { id: 6, name: "Cottage Meetings", description: "Cottage meetings" },
+            { id: 7, name: "Referrals Received", description: "Referrals received" },
+            { id: 8, name: "Referrals Contacted", description: "Referrals contacted" },
+            { id: 9, name: "Sacrament Attendance", description: "Investigators or less-actives who attend Sacrament meeting (that you are helping to teach)" },
+            { id: 10, name: "Leadership Trainings", description: "Leadership trainings" },
+            { id: 11, name: "Member Visits", description: "Member visits / training" },
+            { id: 12, name: "Baptismal Challenges", description: "Baptismal challenges" },
+            { id: 13, name: "Temple Challenges", description: "Temple challenges" },
+            { id: 14, name: "Priesthood Challenges", description: "Priesthood advancement challenges" }
+        ]
     }
 };
 function dumpConfig() {
@@ -69,11 +91,15 @@ db.db.open(function(error, database) {
         db.config = db.database.collection('config');
         db.store = db.database.collection('store');
         db.ward = db.database.collection('ward');
+        db.units = db.database.collection('ward');
         db.flat = db.database.collection('flat');
         db.chapel = db.database.collection('chapel');
         db.area = db.database.collection('area');
         db.missionary = db.database.collection('missionaries');
         db.standards = db.database.collection('standards');
+        db.hastening = db.database.collection('hastening');
+        db.seniorActuals = db.database.collection('seniorActuals');
+        db.seniorGoals = db.database.collection('seniorGoals');
         areaAnalysisCollections = {
             area: db.database.collection('area'),
             chapel: db.database.collection('chapel'),
@@ -81,7 +107,7 @@ db.db.open(function(error, database) {
             ward: db.database.collection('ward'),
             missionary: db.database.collection('missionaries')
         };
-        imosCollections = {
+        importCollections = {
             indicators: db.database.collection('indicators'),
             flat: db.database.collection('flat'),
             ward: db.database.collection('ward')
@@ -96,9 +122,10 @@ db.db.open(function(error, database) {
                 category[item.name] = item.value;
             }
             Email = new Emailer();
+            if(checkDaysPassed(Config.chapels.lastUpdate, 7)) updateChapels();
         });
         db.indicators.findOne({ $query: {}, $orderby: { date: -1 }}, function(err, result) {
-            if(result) Config.imos.latestDate = new Date(result.date);
+            if(result) Config.indicators.latestDate = new Date(result.date);
         });
         getStandards();
     }
@@ -148,6 +175,7 @@ var Auth = {
             sso: null,
             username: "",
             missionary: false,
+            senior: false,
             imos: false,
             prefix: "",
             displayName: "Guest",
@@ -157,7 +185,10 @@ var Auth = {
             zone: "",
             position: null,
             elder: true,
-            auth: Auth.NONE
+            auth: Auth.NONE,
+            goals: {},
+            actuals: {},
+            temp: {}
         };
         if(!variables) for(var name in sessionVariables) req.session[name] = sessionVariables[name];
         else for(var name in variables) req.session[name] = variables[name];
@@ -228,23 +259,41 @@ var Auth = {
                                         displayName: (result.msnyIsElder ? "Elder " : "Sister ") + result.lastName,
                                         auth: Auth.NORMAL
                                     });
+                                    var elder = result.msnyIsElder;
                                     //Update IMOS information if possible
                                     Auth.updateOrganisation(req, function(adminAccess) {
-                                        if(adminAccess) {
-                                            //Update indicators if over a day has passed since last update
-                                            var now = new Date();
-                                            var updateTime = new Date(Config.imos.latestUpdate);
-                                            updateTime.setDate(updateTime.getDate() + Config.imos.daysUntilNextUpdate);
-                                            console.log("Now = " + now + " & updateTime = " + updateTime);
-                                            if(now > updateTime) Auth.updateIndicators(req, null, null, function() {});
-                                        }
                                         //TODO: Find a way to get the missionary where it will work with two of the same name (ID maybe?)
                                         var query = { fullName: req.session.fullName };
                                         db.missionary.findOne(query, function(error, record) {
                                             if(error) { console.log(error); return; }
-                                            if(!record) { done(false); return; }
+                                            //If they're not in the database, they're probably a senior missionary
+                                            if(!record) {
+                                                Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/", function(result) {
+                                                    if(result && result.senior) {
+                                                        //TODO: Put goals and actuals into session variable for indicators
+                                                        Auth.setSession(req, {
+                                                            senior: true,
+                                                            position: "SENIOR_COUPLE",
+                                                            elder: elder,
+                                                            auth: Auth.NORMAL,
+                                                            goals: {},
+                                                            actuals: {}
+                                                        });
+                                                        done(true);
+                                                    }
+                                                    else done(false);
+                                                });
+                                                return;
+                                            }
                                             var auth = Auth.NORMAL;
-                                            if(adminAccess) auth = Auth.ADMIN;
+                                            if(adminAccess || record.position == "SPECIAL_ASSIGNMENT") {
+                                                auth = Auth.ADMIN;
+                                                //Update indicators if over a day has passed since last update
+                                                var now = new Date();
+                                                var updateTime = new Date(Config.indicators.latestUpdate);
+                                                updateTime.setDate(updateTime.getDate() + Config.indicators.daysUntilNextUpdate);
+                                                if(now > updateTime) Auth.updateIndicators(req, null, null, function() {});
+                                            }
                                             else if(record.position == "ASSISTANT") auth = Auth.ADMIN;
                                             else if(record.position == "ZONE_LEADER_LEAD" ||
                                                 record.position == "ZONE_LEADER" ||
@@ -299,17 +348,19 @@ var Auth = {
             for(var option in options) data[option] = options[option];
         }
         request(data, function(error, response, body) {
-            var status = response.statusCode;
+            var status = response.statusCode, result;
             if(error) callback("Error Connecting to Server: " + error);
             else if(status != 200) callback("Status Error: " + status);
             //TODO: Refresh token when necessary
             //else callback(JSON.parse(body));
-            else try { callback(JSON.parse(body)); }
-            catch(error) { callback("JSON Error: " + body); }
+            else try { result = JSON.parse(body); }
+            catch(error) { callback("JSON Error: " + error); }
+            if(result) callback(result);
         });
     },
     updateOrganisation: function(req, callback) {
         Auth.sso(req, "https://missionary.lds.org/ki-entry-proxy/report/local/1/", function(result) {
+            if(!result || !result.entity) { callback(false); return; }
             var records = {}, currentRecord;
             var missionaryRecords = {}, currentMissionaries = {};
             var zone, district, area;
@@ -471,36 +522,39 @@ var Auth = {
             else callback(false);
         });
     },
-    //Set 'date' to extract indicators from the previous to 'date'
+    //Set 'date' to extract indicators from the Monday to Sunday containing 'date'
     updateIndicators: function(req, date, all, callback) {
-        if(!date) date = new Date();
-        //Convert the date to the Monday after the reported week
-        date.setDate(date.getDate() - (date.getDay() || 7) + 1);
+        if(date) date = new Date(date);
+        else date = new Date(Config.indicators.latestDate);
+        //Convert the date to the Monday starting the reported week
+        console.log("Passed In Date = " + formatDate(date));
+        toWeekStart(date);
+        var formattedDate = formatDate(date);
+        console.log("Indicators Start Date = " + Config.indicators.startDate);
+        console.log("Latest Indicators in DB Date = " + Config.indicators.latestDate);
+        console.log("Date Currently Finding Indicators for = " + formattedDate);
         //Do not sync if there are indicators in the old format
-        console.log("date = " + date + " & startDate = " + Config.imos.startDate + " & latestDate = " + Config.imos.latestDate);
-        if(date < Config.imos.startDate) {
-            console.log("Reached IMOS start date while updating indicators. Stopping...");
+        if(formattedDate < Config.indicators.startDate) {
+            console.log("Reached indicators start date while updating indicators. Stopping...");
             return;
         }
-        if(!all && date < Config.imos.latestDate) {
+        if(!all && formattedDate > formatDate(new Date())) {
             console.log("Reached latest indicators date. Stopping...");
             return;
         }
-        var formattedDate = formatDate(date);
-        //IMOS gets reports for the week that contains the date so minus one week
-        var weekAgo = new Date(date);
-        weekAgo.setDate(date.getDate() - 7);
-        var imosDate = formatDate(weekAgo);
-        var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + imosDate + "/" + imosDate + "/mission/14292";
+        //IMOS gets reports for the week that contains the date
+        //(Sending a Wednesday would get the Monday before the Wednesday to the Sunday after's indicators)
+        //(The date on the IMOS indicators is the Monday beginning the reported week)
+        console.log("Date Sent to IMOS = " + formattedDate);
+        var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + formattedDate + "/" + formattedDate + "/mission/14292";
         Auth.sso(req, url, function(result) {
             //Return if the user does not have authority
             if(!result || !result.entity) {
                 console.log("User does not have IMOS access. Stopping...");
-                console.log("Result = " + result + " & url = " + url);
                 if(callback) callback(false);
                 return;
             }
-            callback(true);
+            else if(callback) callback(true);
             console.log("Getting indicators for " + formattedDate + "...");
             //Get key indicator IDs
             var logs = { "Items updated:": 0 };
@@ -530,9 +584,11 @@ var Auth = {
             for(var a = 0; a < zones.length; a++) {
                 var zone = zones[a];
                 var districts = zone.entities;
+                if(!districts) { console.log("No districts in zone " + zone.name); continue; }
                 for(var b = 0; b < districts.length; b++) {
                     var district = districts[b];
                     var areas = district.entities;
+                    if(!areas) { console.log("No areas in district " + district.name); continue; }
                     for(var c = 0; c < areas.length; c++) {
                         var area = areas[c];
                         if(!area.entities) continue;
@@ -564,7 +620,7 @@ var Auth = {
                         item.district = district.name;
                         item.area = area.name;
                         //Set date as the Monday after the reported week
-                        item.date = date;
+                        item.date = formattedDate;
                         //Add unit ('Chermside Ward' to 'Chermside')
                         var unit = report.name;
                         unit = unit.substring(0, unit.lastIndexOf(' '));
@@ -583,19 +639,19 @@ var Auth = {
                         }
                         //Save the item
                         var query = { date: formattedDate, area: area.name };
-                        db.indicators.update(query, item, { upsert: true }, doNothing);
+                        db.indicators.update(query, item, { upsert: true }, dbLogIfError);
                         logs["Items updated:"]++;
                     }
                 }
             }
             req.session.imos = true;
-            //Sync indicators for last week
-            setTimeout(function() { Auth.updateIndicators(req, weekAgo); }, 10000);
+            //Sync indicators for next week
+            var nextWeek = new Date(formattedDate);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            console.log("Date = " + date + " & Next Week = " + nextWeek);
+            setTimeout(function() { Auth.updateIndicators(req, nextWeek); }, 10000);
             //Update latest update
-            var date = new Date();
-            var query = { category: "imos", name: "latestUpdate" };
-            db.config.update(query, { date: date }, { upsert: true }, doNothing);
-            Config.imos.latestUpdate = date;
+            setConfig("indicators", "latestUpdate", formatDate(new Date()));
             //Show the logs
             for(var message in logs) {
                 console.log(message + " (x" + logs[message] + ")");
@@ -667,14 +723,8 @@ var Emailer = function() {
 //Web Pages
 function render(req, res, page, params) {
     if(!params) params = {};
-    params.username = req.session.username;
-    params.prefix = req.session.prefix;
-    params.displayName = req.session.displayName;
-    params.fullName = req.session.fullName;
-    params.area = req.session.area;
-    params.unit = req.session.unit;
-    params.zone = req.session.zone;
-    params.auth = req.session.auth;
+    for(var key in req.session) params[key] = req.session[key];
+    req.session.temp = {};
     params.admin = req.session.auth == Auth.ADMIN;
     res.render(page, params);
 }
@@ -690,7 +740,101 @@ var Page = function(url, jade, auth, onResponse) {
     });
 };
 server.get('/', function (req, res) {
-    render(req, res, "index", {});
+    if(req.session.senior) {
+        var indicators = [], configIndicators = Config.seniors.indicators;
+        for(var i = 0, length = configIndicators.length; i < length; i++) {
+            var item = configIndicators[i];
+            indicators.push({
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                lastWeekGoal: 0
+            });
+        }
+        function formatDate(date) {
+            var day = date.getDate();
+            var month = date.getMonth() + 1;
+            var year = date.getFullYear();
+            return day + "/" + month + "/" + year;
+        }
+        var fromDate = new Date(), toDate = new Date();
+        //Convert fromDate to Monday and toDate to Sunday
+        toWeekStart(fromDate);
+        toDate.setUTCDate(fromDate.getDate() + 6);
+        var thisWeek = formatDate(fromDate) + " - " + formatDate(toDate);
+        fromDate.setUTCDate(fromDate.getDate() - 7);
+        toDate.setUTCDate(toDate.getDate() - 7);
+        var lastWeek = formatDate(fromDate) + " - " + formatDate(toDate);
+        render(req, res, "index", {
+            indicators: indicators,
+            thisWeek: thisWeek,
+            lastWeek: lastWeek
+        });
+    }
+    else render(req, res, "index", {});
+});
+new Page("/indicators/view", "sr_indicators_viewer.jade", Auth.ADMIN);
+server.get("/indicators/get", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    //Get indicators for the last few weeks
+    var date = new Date();
+    date.setDate(date.getDate() - Config.indicators.displayWeeks * 7);
+    var query = { date: { $gt: formatDate(date) }};
+    //Get the indicators from the database
+    var indicators = Config.seniors.indicators;
+    db.seniorActuals.find(query).toArray(function(error, actuals) {
+        if(error) { console.log(error); res.send(500); return; }
+        db.seniorGoals.find(query).toArray(function(error, goals) {
+            if(error) { console.log(error); res.send(500); return; }
+            res.send({
+                goals: goals,
+                actuals: actuals,
+                indicators: indicators
+            });
+        });
+    });
+});
+server.get("/indicators/save", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    res.send();
+});
+server.post("/indicators/submit", function(req, res) {
+    if(!req.session.senior) return;
+    //Calculate dates of indicators
+    var date = new Date();
+    toWeekStart(date);
+    var goals = {
+        missionary: req.session.prefix + req.session.fullName,
+        date: formatDate(date)
+    };
+    date.setDate(date.getDate() - 7);
+    var actuals = {
+        missionary: req.session.prefix + req.session.fullName,
+        date: formatDate(date)
+    };
+    //Get actuals and goals submitted
+    var actualPrefix = "lastWeekActual_", goalPrefix = "thisWeekGoal_";
+    for(var key in req.body) {
+        if(!key.indexOf(actualPrefix)) {
+            var id = key.substr(actualPrefix.length);
+            actuals[id] = req.session.actuals[id] = req.body[key];
+        }
+        else if(!key.indexOf(goalPrefix)) {
+            var id = key.substr(goalPrefix.length);
+            goals[id] = req.session.goals[id] = req.body[key];
+        }
+    }
+    //Insert into indicators into database
+    db.seniorActuals.insert(actuals, function(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        db.seniorGoals.insert(goals, function(error, result) {
+            if(error) { console.log(error); res.send(500); }
+            else {
+                req.session.temp.indicatorSuccess = true;
+                res.redirect("/");
+            }
+        });
+    });
 });
 
 server.get('/ki_check', function (req, res) {
@@ -698,6 +842,86 @@ server.get('/ki_check', function (req, res) {
 });
 server.get('/ki_check/get', function (req, res) {
     db.indicators.find().toArray(function(error, items) { res.send(items); });
+});
+
+server.get('/hastening', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var query = { zone: req.session.zone };
+    db.missionary.find(query).toArray(function(error, missionaries) {
+        //Get the date for the report
+        var months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December"
+        ];
+        var date = new Date();
+        date.setMonth(date.getMonth() - 1);
+        var reportDate = months[date.getMonth()] + " " + date.getFullYear();
+        //Get missionary counts, units and zone leaders
+        var units = {}, zoneLeaders = [];
+        for(var i = 0; i < missionaries.length; i++) {
+            var missionary = missionaries[i];
+            var unitName = missionary.unit;
+            //Add the current missionary to the full-time missionary count
+            if(!units[unitName]) units[unitName] = 1;
+            else units[unitName]++;
+            //Check if the missionary is one of the zone leaders
+            var position = missionary.position;
+            if(position == "ZONE_LEADER" || position == "ZONE_LEADER_LEAD") {
+                zoneLeaders.push(missionary.lastName);
+            }
+        }
+        //Listify function for the zone leaders
+        function listify(items, prefixSingular, prefixPlural) {
+            if(!items.length) return "";
+            if(items.length == 1) return prefixSingular + " " + items[0];
+            return prefixPlural + " " + items.slice(0, items.length - 1).join(", ") + " & " + items.pop();
+        }
+        //Send the page
+        var data = {
+            reportDate: reportDate,
+            stake: req.session.zone,
+            zoneLeaders: listify(zoneLeaders, "Elder", "Elders"),
+            units: units
+        };
+        render(req, res, "hastening", data);
+    });
+});
+server.post('/hastening/submit', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var data = req.body;
+    var date = new Date();
+    data.submitDate = formatDate(date);
+    date.setMonth(date.getMonth() - 1);
+    data.date = formatDate(date);
+    db.hastening.insert(data, function(error, result) {
+        if(error) { console.log(error); res.send(500); }
+        else res.send();
+    });
+});
+server.get('/hastening/view', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    render(req, res, "hastening_view", {});
+});
+server.get('/hastening/get', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    db.hastening.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); }
+        else res.send(items);
+    });
+});
+
+server.get('/forms', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    render(req, res, "forms", {});
 });
 
 function getStandards() {
@@ -744,20 +968,32 @@ server.get('/standards/get', function (req, res) {
 });
 server.post('/standards/save', function (req, res) {
     if(Auth.require(req, res, Auth.DL)) return;
-    var missionaries = req.body;
-    for(var i = 0, length = missionaries.length; i < length; i++) {
-        var missionary = missionaries[i];
-        var standards = {};
-        for(var standard in missionary.standards) {
-            if(missionary.standards[standard]) standards[standard] = true;
+    db.missionary.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); return; }
+        var missionaries = req.body;
+        var dbMissionaries = {};
+        var today = formatDate(new Date());
+        for(var i = 0, length = items.length; i < length; i++) {
+            dbMissionaries[items[i]._id] = items[i];
         }
-        var query = { _id: new mongodb.ObjectID(missionary._id) };
-        if(req.session.auth == Auth.DL) query.district = req.session.district;
-        else if(req.session.auth == Auth.ZL) query.zone = req.session.zone;
-        var update = { $set: { standards: standards } };
-        db.missionary.update(query, update, dbLogIfError);
-    }
-    res.send();
+        for(var i = 0, length = missionaries.length; i < length; i++) {
+            var missionary = missionaries[i];
+            var id = missionary._id;
+            var dbStandards = dbMissionaries[id].standards;
+            var standards = {};
+            for(var standard in missionary.standards) {
+                if(missionary.standards[standard]) {
+                    standards[standard] = dbStandards[standard] || today;
+                }
+            }
+            var query = { _id: new mongodb.ObjectID(id) };
+            if(req.session.auth == Auth.DL) query.district = req.session.district;
+            else if(req.session.auth == Auth.ZL) query.zone = req.session.zone;
+            var update = { $set: { standards: standards } };
+            db.missionary.update(query, update, dbLogIfError);
+        }
+        res.send();
+    });
 });
 server.post('/standards/admin', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
@@ -777,14 +1013,54 @@ server.post('/standards/admin', function (req, res) {
     res.send();
     getStandards();
 });
+server.get('/standards/standards.csv', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    db.standards.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); return; }
+        var headings = [ "Missionary" ];
+        var ids = [ null ];
+        for(var i = 0; i < items.length; i++) {
+            var standard = items[i];
+            headings.push(standard.name);
+            ids.push(standard._id);
+        }
+        var lines = [];
+        var cursor = db.missionary.find();
+        function addRecord(error, result) {
+            if(error) { console.log(error); res.send(500); }
+            else if(result) {
+                //Add missionary name
+                var name = result.lastName + ", " + result.firstName;
+                if(result.middleName) name += " " + result.middleName;
+                var line = [ name ];
+                //Get the status of each standard
+                var missionaryStandards = result.standards;
+                for(var i = 1; i < headings.length; i++) {
+                    var completed = missionaryStandards[ids[i]];
+                    line[i] = completed ? "TRUE" : "FALSE";
+                }
+                lines.push(line);
+                cursor.next(addRecord);
+            }
+            else {
+                lines.splice(0, 0, headings);
+                res.set('Content-Type', 'text/csv');
+                res.send(csv.arrayToCsv(lines));
+                return;
+            }
+        }
+        cursor.next(addRecord);
+    });
+});
 
 server.get('/cards', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
-    var price = parseFloat(Config.cards.price).toFixed(2);
     render(req, res, "cards", {
-        price: price,
+        price: parseFloat(Config.cards.price).toFixed(2),
+        holderPrice: parseFloat(Config.cards.holderPrice).toFixed(2),
         values: {
             packs: 1,
+            holders: 0,
             name: req.session.prefix + req.session.fullName,
             address1: "",
             address2: "",
@@ -800,11 +1076,15 @@ server.post('/cards', function (req, res) {
     var subject = "Card Order for " + req.body.name;
     var date = new Date();
     date = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000 + 1000 * 60 * 60 * 10);
+    var packCost = parseFloat(Config.cards.price) * req.body.packs;
+    var holderCost = parseFloat(Config.cards.holderPrice) * req.body.holders;
+    var cost = (packCost + holderCost).toFixed(2);
     var message = [
         'Date: ' + date.toLocaleDateString() + '<br />',
         'User: ' + req.session.displayName + ' (' + req.session.username + ')<br />',
         'Number of Packs: ' + req.body.packs + '<br />',
-        'Total Cost: $' + (parseFloat(Config.cards.price) * req.body.packs).toFixed(2) + '<br />',
+        'Number of Card Holders: ' + req.body.holders + '<br />',
+        'Total Cost: $' + cost + '<br />',
         '<h2>Name</h2>' + req.body.name,
         '<h2>Address Line 1</h2>' + req.body.address1,
         '<h2>Address Line 2</h2>' + req.body.address2,
@@ -819,8 +1099,10 @@ server.post('/cards', function (req, res) {
         callback: function(error, response) {
             render(req, res, "cards", {
                 price: parseFloat(Config.cards.price).toFixed(2),
+                holderPrice: parseFloat(Config.cards.holderPrice).toFixed(2),
                 values: {
                     packs: req.body.packs,
+                    holders: req.body.holders,
                     name: req.body.name,
                     address1: req.body.address1,
                     address2: req.body.address2,
@@ -859,6 +1141,12 @@ server.get('/store/items', function(req, res) {
     });
 });
 
+function setConfig(category, name, value) {
+    Config[category][name] = value;
+    var query = { category: category, name: name };
+    var update = { category: category, name: name, value: value };
+    db.config.update(query, update, { upsert: true }, dbLogIfError);
+}
 server.get('/config', function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     render(req, res, "config", { config: Config });
@@ -892,7 +1180,10 @@ server.get('/historical_data', function (req, res) {
 
 server.get('/recommendations', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
-    render(req, res, "recommendations", {});
+    render(req, res, "recommendations", {
+        zoneName: req.session.zone || req.session.username,
+        zoneLeader: req.session.sso ? req.session.displayName : ""
+    });
 });
 server.get('/recommendations/success', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
@@ -901,10 +1192,12 @@ server.get('/recommendations/success', function (req, res) {
 server.post('/recommendations/submit', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     var data = [];
+    var zone = req.session.zone || req.session.username;
+    var zoneLeader = req.session.sso ? req.session.displayName : req.body[0].zoneLeader;
     for(var i = 0; i < req.body.length; i++) {
         data.push({
-            zoneLeader: req.body[i].zoneLeader,
-            zone: req.session.username,
+            zoneLeader: zoneLeader,
+            zone: zone,
             area: req.body[i].area,
             name: req.body[i].name,
             transfersInArea: req.body[i].tIn,
@@ -1010,21 +1303,14 @@ server.post('/callsheet/db', function (req, res) {
 
 new Page("/graphs", "graphs.jade", Auth.ADMIN);
 
-//IMOS Importing
-new Page("/imos", "imos.jade", Auth.ADMIN);
-var imosCollections = null;
-server.post('/imos/db', function (req, res) {
+//Importing / Exporting
+new Page("/import", "import.jade", Auth.ADMIN);
+var importCollections = null;
+server.post('/import/db', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
-    var collection = imosCollections[req.body.collection];
+    var collection = importCollections[req.body.collection];
     if(req.body.action == "insert") {
-        var data = req.body.data, line;
-        for(var i = 0; i < data.length; i++) {
-            line = data[i];
-            for(var key in line) {
-                if(key == "date") line[key] = new Date(line[key]);
-            }
-        }
-        collection.insert(data, {w:1}, function (err, result) {
+        collection.insert(req.body.data, {w:1}, function (err, result) {
             if(err) { console.log(err); res.send(500, err); }
             else res.send(result);
         });
@@ -1049,7 +1335,28 @@ var wardAlias = {
     "Cairns  1st": "Cairns 1st",
     "Cairns  2nd": "Cairns 2nd"
 };
-server.get('/imos/indicators.csv', function (req, res) {
+function sortByMonth(data) {
+    var months = [
+        null,
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ];
+    for(var i = 0; i < data.length; i++) {
+        var dates = data[i][0].split("-");
+        data[i][0] = months[parseInt(dates[1])] + "-" + dates[0];
+    }
+}
+server.get('/import/indicators.csv', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var line = [], data = [], headings = [
         "Date",
@@ -1112,6 +1419,7 @@ server.get('/imos/indicators.csv', function (req, res) {
                 if(a[0] < b[0]) return -1;
                 return 0;
             });
+            if(req.query.months) sortByMonth(data);
             data.splice(0, 0, headings);
             res.set('Content-Type', 'text/csv');
             res.send(csv.arrayToCsv(data));
@@ -1137,21 +1445,13 @@ server.get('/imos/indicators.csv', function (req, res) {
                 line[indexes["finding"]] = finding;
                 line[indexes["potentials"]] = potentials;
             }
-            else if(key == "date") {
-                var day = value.getDate();
-                if(day < 10) day = "0" + day;
-                var month = value.getMonth() + 1;
-                if(month < 10) month = "0" + month;
-                var year = value.getFullYear();
-                line[indexes["date"]] = year + "-" + month + "-" + day;
-            }
             else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
             else line[indexes[key]] = value;
         }
         data.push(line);
     });
 });
-server.get('/imos/indicators2.csv', function (req, res) {
+server.get('/import/indicators2.csv', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var line = [], data = [], headings = [
         "Date",
@@ -1214,6 +1514,7 @@ server.get('/imos/indicators2.csv', function (req, res) {
                 if(a[0] < b[0]) return -1;
                 return 0;
             });
+            if(req.query.months) sortByMonth(data);
             data.splice(0, 0, headings);
             res.set('Content-Type', 'text/csv');
             res.send(csv.arrayToCsv(data));
@@ -1234,14 +1535,6 @@ server.get('/imos/indicators2.csv', function (req, res) {
                 line[indexes["finding"]] = finding;
                 line[indexes["potentials"]] = potentials;
             }
-            else if(key == "date") {
-                var day = value.getDate();
-                if(day < 10) day = "0" + day;
-                var month = value.getMonth() + 1;
-                if(month < 10) month = "0" + month;
-                var year = value.getFullYear();
-                line[indexes["date"]] = year + "-" + month + "-" + day;
-            }
             else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
             else line[indexes[key]] = value;
         }
@@ -1253,7 +1546,7 @@ server.get('/imos/indicators2.csv', function (req, res) {
         }
     });
 });
-server.get('/imos/stake_effectiveness_data.csv', function (req, res) {
+server.get('/import/stake_effectiveness_data.csv', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var line = [], data = [], headings = [
         ["Date", "date"],
@@ -1285,25 +1578,7 @@ server.get('/imos/stake_effectiveness_data.csv', function (req, res) {
                 if(a[0] < b[0]) return -1;
                 return 0;
             });
-            var month, year, months = [
-                "Jan",
-                "Feb",
-                "Mar",
-                "Apr",
-                "May",
-                "Jun",
-                "Jul",
-                "Aug",
-                "Sep",
-                "Oct",
-                "Nov",
-                "Dec",
-            ];
-            for(var i = 0; i < data.length; i++) {
-                month = months[data[i][0].getMonth()];
-                year = data[i][0].getFullYear();
-                data[i][0] = month + "-" + year;
-            }
+            sortByMonth(data);
             line = [];
             for(var i in headings) line[i] = headings[i][0];
             data.splice(0, 0, line);
@@ -1335,7 +1610,71 @@ server.get('/imos/stake_effectiveness_data.csv', function (req, res) {
         data.push(line);
     });
 });
-server.get('/imos/effectiveness_data.csv', function (req, res) {
+server.get('/import/indicators_by_month.csv', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    var line = [], data = [], headings = [
+        ["Date", "date"],
+        ["Area", "area"],
+        ["District", "district"],
+        ["Zone", "zone"],
+        ["Ward", "ward"],
+        ["Missionaries", "missionaries"],
+        ["Baptized", "baptised"],
+        ["Confirmed", "confirmed"],
+        ["Baptismal Dates", "baptismalDate"],
+        ["Investigators at Sacrament", "sacrament"],
+        ["Member Present Lessons", "memberPresent"],
+        ["Other Lessons", "otherLesson"],
+        ["Progressing Investigators", "progressing"],
+        ["Referrals Received", "received"],
+        ["Referrals Contacted", "contacted"],
+        ["New Investigators", "newInvestigators"],
+        ["Recent Convert and Less-Active Lessons", "rcla"],
+        ["Finding Hours", "finding"],
+        ["Potential Investigators", "potentials"]
+    ];
+    var cursor = db.indicators.find();
+    cursor.each(function(err, doc) {
+        if(err) { console.log(err); return; }
+        if(!doc) {
+            data.sort(function(a, b) {
+                if(a[0] > b[0]) return 1;
+                if(a[0] < b[0]) return -1;
+                return 0;
+            });
+            sortByMonth(data);
+            line = [];
+            for(var i in headings) line[i] = headings[i][0];
+            data.splice(0, 0, line);
+            res.set('Content-Type', 'text/csv');
+            res.send(csv.arrayToCsv(data));
+            return;
+        }
+        line = [];
+        for(var key in headings) {
+            var name = headings[key][1];
+            var value = doc[name];
+            if(value === undefined) line[key] = "";
+            else if(name == "missionaries") {
+                var missionaries = [];
+                for(var i in value) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
+                line[key] = missionaries.join(' / ');
+            }
+            else if(name == "ward") line[key] = wardAlias[value] || value;
+            else line[key] = value;
+        }
+        //TODO: Catch this before INSERTING into the database
+        if(doc.findingPotentials) {
+            var value = doc.findingPotentials;
+            var finding = value.substring(0, value.length - 2);
+            var potentials = value.substring(value.length - 2);
+            line[17] = finding;
+            line[18] = potentials;
+        }
+        data.push(line);
+    });
+});
+server.get('/import/effectiveness_data.csv', function (req, res) {
     //if(Auth.require(req, res, Auth.ADMIN)) return;
     var line = [], data = [], headings = [
         ["Date", "date"],
@@ -1386,14 +1725,6 @@ server.get('/imos/effectiveness_data.csv', function (req, res) {
                 for(var i in value) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
                 line[key] = missionaries.join(' / ');
             }
-            else if(name == "date") {
-                var day = value.getDate();
-                if(day < 10) day = "0" + day;
-                var month = value.getMonth() + 1;
-                if(month < 10) month = "0" + month;
-                var year = value.getFullYear();
-                line[key] = year + "-" + month + "-" + day;
-            }
             //else if(name == "ward") line[key] = wardAlias[value] || value;
             else line[key] = value;
         }
@@ -1413,9 +1744,91 @@ server.get('/imos/effectiveness_data.csv', function (req, res) {
 server.get('/area_analysis', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     render(req, res, "area", {});
+    if(checkDaysPassed(Config.chapels.lastUpdate, 7)) updateChapels();
 });
 
+var updatingChapels = false;
+function updateChapels() {
+    if(updatingChapels) return;
+    updatingChapels = true;
+    console.log("CHAPELS: Updating...");
+    db.ward.find().toArray(function(error, items) {
+        if(error) { console.log(error); updatingChapels = false; return; }
+        var index = -1, chapels = {};
+        function update() {
+            if(++index >= items.length) {
+                //We've done every unit so add the chapels now
+                db.chapel.remove(function(error, result) {
+                    if(error) { console.log(error); updatingChapels = false; return; }
+                    var insert = [];
+                    for(var address in chapels) insert.push(chapels[address]);
+                    db.chapel.insert(insert, function(error, result) {
+                        if(error) console.log(error);
+                        else console.log("CHAPELS: Finished updating!");
+                        setConfig("chapels", "lastUpdate", new Date());
+                        updatingChapels = false;
+                    });
+                });
+                return;
+            }
+            var unit = items[index];
+            var unitName = unit.name.replace(/ /g, "+");
+            //TODO: Alter once the 'ward' table is updated to 'units'
+            if(unitName.substr(-7) != "+Branch") unitName += "+Ward";
+            var uri = "https://www.lds.org/maps/services/search?query=" + unitName;
+            request({ uri: uri, method: "GET" }, function(error, response, body) {
+                var status = response.statusCode, result;
+                if(error) console.log("Error Connecting to Server: " + error);
+                else if(status != 200) console.log("Status Error: " + status);
+                else {
+                    result = JSON.parse(body);
+                    //Try and find the best result (First result is not always
+                    //the chapel and ABM chapels are not all in Queensland)
+                    var bestResult = null;
+                    for(var i = 0, length = result.length; i < length; i++) {
+                        var item = result[i];
+                        if(item.type != "ward" && item.type != "branch") continue;
+                        var address = item.address;
+                        if(!address) continue;
+                        if(address.state == "QUEENSLAND") { bestResult = item; break; }
+                        else if(address.country == "AUSTRALIA" && !bestResult) bestResult = item;
+                    }
+                    if(bestResult) {
+                        var addy = bestResult.address;
+                        var address = "";
+                        if(addy.street) address += capitalise(addy.street);
+                        if(addy.city) address += ", " + capitalise(addy.city);
+                        if(addy.state) address += ", " + capitalise(addy.state);
+                        if(addy.zip) address += " " + addy.zip;
+                        var name = addy.city ? capitalise(addy.city) : unit.name;
+                        var position = [ bestResult.coordinates[1], bestResult.coordinates[0] ];
+                        chapels[address] = { name: name, address: address, position: position };
+                        var query = { _id: unit._id };
+                        var data = { $set: { chapel: name, phone: bestResult.phone } };
+                        db.ward.update(query, data, dbLogIfError);
+                    }
+                    else console.log("CHAPELS: NO RESULTS FOR " + unitName + "!!!");
+                    //Log the progress of updating all the chapels
+                    if(index && !(index % 10)) console.log("CHAPELS: " + Math.round(index / items.length * 100) + "%");
+                    setTimeout(update, 5000);
+                }
+            });
+        }
+        update();
+    });
+}
+
 var areaAnalysisCollections = null;
+server.post('/area_analysis/units', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    db.units.remove(function(error, result) {
+        if(error) { console.log(error); res.send(500, error); }
+        else db.units.insert(req.body.units, function(error, result) {
+            if(error) { console.log(error); res.send(500, error); }
+            else res.send();
+        });
+    });
+});
 server.post('/area_analysis/db', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     var collection, id;
@@ -1570,21 +1983,77 @@ server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
 //-------------
 function splitFindingPotentials(value) {
     var finding = 0, potentials = 0;
-    if(value.length > 1) {
-        finding = value.substring(0, value.length - 2);
-        potentials = value.substring(value.length - 2);
+    value = value + "";
+    if(value.length > 2) {
+        finding = parseInt(value.substr(0, value.length - 2));
+        potentials = parseInt(value.substr(-2));
     }
+    else if(value.length == 2) {
+        if(value.charAt(0) == 1 && value.charAt(1) > 2) finding = parseInt(value);
+        else {
+            finding = parseInt(value.charAt(0));
+            potentials = parseInt(value.charAt(1));
+        }
+    }
+    else if(value.length == 1) finding = parseInt(value);
     return { finding: finding, potentials: potentials };
 }
+function toWeekStart(date) {
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() || 7) + 1);
+}
 function formatDate(date) {
-    var year = date.getFullYear();
-    var month = date.getMonth() + 1;
+    var year = date.getUTCFullYear();
+    var month = date.getUTCMonth() + 1;
     if(month < 10) month = "0" + month;
-    var day = date.getDate();
+    var day = date.getUTCDate();
     if(day < 10) day = "0" + day;
     return year + "-" + month + "-" + day;
 }
 function doNothing() {}
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"'\/]/g, function(s) {
+        return {
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': '&quot;',
+            "'": '&#39;',
+            "/": '&#x2F;'
+        }[s];
+    });
+}
+function checkDaysPassed(date, daysPassed) {
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysPassed);
+    return date < cutoff;
+}
+function capitalise(title) {
+	function lower(word) { return word.toLowerCase(); }
+	function upper(word) { return word.substr(0, 1).toUpperCase() + word.substr(1); }
+	function replaceA(all) { return (/[A-Za-z]\.[A-Za-z]/).test(all) ? all : upper(all); }
+	function replaceB(all, punct, word) { return punct + upper(word); }
+	var small = "(a|an|and|as|at|but|by|en|for|if|in|of|on|or|the|to|v[.]?|via|vs[.]?)";
+	var punct = "([!\"#$%&'()*+,./:;<=>?@[\\\\\\]^_`{|}~-]*)";
+	var allWords = /\b([A-Za-z][a-z.'Õ]*)\b/g;
+	var smallWords = RegExp("\\b" + small + "\\b", "ig");
+	var punctSmall = RegExp("^" + punct + small + "\\b", "ig");
+	var smallPunct = RegExp("\\b" + small + punct + "$", "ig");
+	
+	title = title.toLowerCase();
+	var parts = [], split = /[:.;?!] |(?: |^)["Ò]/g, index = 0, m = true;
+	while(m) {
+		m = split.exec(title);
+		parts.push(title.substring(index, m ? m.index : title.length)
+			.replace(allWords, replaceA).replace(smallWords, lower)
+			.replace(punctSmall, replaceB).replace(smallPunct, upper));
+		index = split.lastIndex;
+		if(m) parts.push(m[0]);
+	}
+	
+	return parts.join("").replace(/ V(s?)\. /ig, " v$1. ")
+		.replace(/(['Õ])S\b/ig, "$1s")
+		.replace(/\b(AT&T|Q&A)\b/ig, function(all) { return all.toUpperCase(); }).trim();
+}
 //-------------
 function md5cycle(x, k) {
 var a = x[0], b = x[1], c = x[2], d = x[3];
