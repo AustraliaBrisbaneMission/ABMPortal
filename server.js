@@ -49,23 +49,7 @@ var Config = {
     },
     chapels: { lastUpdate: new Date("2013-08-01") },
     seniors: {
-        indicators: [
-            { id: 0, name: "Recent Convert Lessons", description: "Lessons taught to recent converts" },
-            { id: 1, name: "Less-Active Lessons", description: "Lessons taught to less-active members" },
-            { id: 2, name: "Investigator Lessons", description: "Lessons taught to investigators" },
-            { id: 3, name: "Member Present Lessons", description: "Lessons taught with a member present" },
-            { id: 4, name: "Missionary Lessons", description: "Lessons taught to investigators with young missionaries" },
-            { id: 5, name: "Service Hours", description: "Weekly service hours (meals prepared for others, service projects, branch service hours, talents shared, ordinations performed, etc.)" },
-            { id: 6, name: "Cottage Meetings", description: "Cottage meetings" },
-            { id: 7, name: "Referrals Received", description: "Referrals received" },
-            { id: 8, name: "Referrals Contacted", description: "Referrals contacted" },
-            { id: 9, name: "Sacrament Attendance", description: "Investigators or less-actives who attend Sacrament meeting (that you are helping to teach)" },
-            { id: 10, name: "Leadership Trainings", description: "Leadership trainings" },
-            { id: 11, name: "Member Visits", description: "Member visits / training" },
-            { id: 12, name: "Baptismal Challenges", description: "Baptismal challenges" },
-            { id: 13, name: "Temple Challenges", description: "Temple challenges" },
-            { id: 14, name: "Priesthood Challenges", description: "Priesthood advancement challenges" }
-        ]
+        indicators: []
     }
 };
 function dumpConfig() {
@@ -91,13 +75,14 @@ db.db.open(function(error, database) {
         db.config = db.database.collection('config');
         db.store = db.database.collection('store');
         db.ward = db.database.collection('ward');
-        db.units = db.database.collection('ward');
+        db.units = db.database.collection('units');
         db.flat = db.database.collection('flat');
         db.chapel = db.database.collection('chapel');
         db.area = db.database.collection('area');
         db.missionary = db.database.collection('missionaries');
         db.standards = db.database.collection('standards');
         db.hastening = db.database.collection('hastening');
+        db.seniorIndicators = db.database.collection('seniorIndicators');
         db.seniorActuals = db.database.collection('seniorActuals');
         db.seniorGoals = db.database.collection('seniorGoals');
         areaAnalysisCollections = {
@@ -105,6 +90,7 @@ db.db.open(function(error, database) {
             chapel: db.database.collection('chapel'),
             flat: db.database.collection('flat'),
             ward: db.database.collection('ward'),
+            units: db.database.collection('units'),
             missionary: db.database.collection('missionaries')
         };
         importCollections = {
@@ -128,6 +114,7 @@ db.db.open(function(error, database) {
             if(result) Config.indicators.latestDate = new Date(result.date);
         });
         getStandards();
+        getSeniorIndicators();
     }
     if(Config.mongodb.username) {
         db.db.authenticate(Config.mongodb.username, Config.mongodb.password, { authdb: "admin" }, function(error, result) {
@@ -270,16 +257,38 @@ var Auth = {
                                             if(!record) {
                                                 Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/", function(result) {
                                                     if(result && result.senior) {
-                                                        //TODO: Put goals and actuals into session variable for indicators
-                                                        Auth.setSession(req, {
-                                                            senior: true,
-                                                            position: "SENIOR_COUPLE",
-                                                            elder: elder,
-                                                            auth: Auth.NORMAL,
-                                                            goals: {},
-                                                            actuals: {}
+                                                        function finishSenior(goals, actuals) {
+                                                                Auth.setSession(req, {
+                                                                    senior: true,
+                                                                    position: "SENIOR_COUPLE",
+                                                                    elder: elder,
+                                                                    auth: Auth.NORMAL,
+                                                                    goals: goals || {},
+                                                                    actuals: actuals || {}
+                                                                });
+                                                                done(true);
+                                                        }
+                                                        var date = new Date();
+                                                        toWeekStart(date);
+                                                        var thisWeek = formatDate(date);
+                                                        var query = {
+                                                            missionary: req.session.prefix + req.session.fullName,
+                                                            date: thisWeek
+                                                        };
+                                                        db.seniorGoals.findOne(query, function(error, goals) {
+                                                            if(error) { console.log(error); return; }
+                                                            if(!goals) {
+                                                                finishSenior();
+                                                                return;
+                                                            }
+                                                            date.setUTCDate(date.getUTCDate() - 7);
+                                                            var lastWeek = formatDate(date);
+                                                            query.date = lastWeek;
+                                                            db.seniorActuals.findOne(query, function(error, actuals) {
+                                                                if(error) { console.log(error); return; }
+                                                                finishSenior(goals, actuals);
+                                                            });
                                                         });
-                                                        done(true);
                                                     }
                                                     else done(false);
                                                 });
@@ -325,8 +334,9 @@ var Auth = {
         });
     },
     logout: function(req) { Auth.setSession(req); },
-    require: function(req, res, auth) {
-        if(req.session.auth && req.session.auth >= auth) return false;
+    require: function(req, res, auth, orSenior) {
+        if(req.session.auth && (req.session.auth >= auth ||
+            orSenior && req.session.senior)) return false;
         res.redirect('/noauth');
         return true;
     },
@@ -745,7 +755,7 @@ server.get('/', function (req, res) {
         for(var i = 0, length = configIndicators.length; i < length; i++) {
             var item = configIndicators[i];
             indicators.push({
-                id: item.id,
+                id: item._id,
                 name: item.name,
                 description: item.description,
                 lastWeekGoal: 0
@@ -794,9 +804,42 @@ server.get("/indicators/get", function(req, res) {
         });
     });
 });
-server.get("/indicators/save", function(req, res) {
+server.post("/indicators/save", function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
-    res.send();
+    //Update modified indicators
+    var modified = req.body.modified, index = -1;
+    function update(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        if(++index >= modified.length) {
+            getSeniorIndicators(function() { res.send(); });
+            return;
+        }
+        var item = modified[index];
+        var query = { _id: new mongodb.ObjectID(item.id) };
+        var record = { name: item.name, description: item.description };
+        db.seniorIndicators.update(query, record, update);
+    }
+    //Remove deleted indicators
+    var deleted = req.body.deleted;
+    function remove(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        if(++index >= deleted.length) {
+            //Insert new indicators
+            if(!req.body.inserted.length) {
+                index = -1;
+                update();
+            }
+            else db.seniorIndicators.insert(req.body.inserted, function(error, result) {
+                if(error) { console.log(error); res.send(500); return; }
+                index = -1;
+                update();
+            });
+            return;
+        }
+        var query = { _id: new mongodb.ObjectID(deleted[index]) };
+        db.seniorIndicators.remove(query, remove);
+    }
+    remove();
 });
 server.post("/indicators/submit", function(req, res) {
     if(!req.session.senior) return;
@@ -825,17 +868,36 @@ server.post("/indicators/submit", function(req, res) {
         }
     }
     //Insert into indicators into database
-    db.seniorActuals.insert(actuals, function(error, result) {
+    var query = { date: actuals.date, missionary: actuals.missionary };
+    db.seniorActuals.update(query, actuals, { upsert: true }, function(error, result) {
         if(error) { console.log(error); res.send(500); return; }
-        db.seniorGoals.insert(goals, function(error, result) {
-            if(error) { console.log(error); res.send(500); }
-            else {
-                req.session.temp.indicatorSuccess = true;
-                res.redirect("/");
-            }
+        var query = { date: goals.date, missionary: goals.missionary };
+        db.seniorGoals.update(query, goals, { upsert: true }, function(error, result) {
+            if(error) { console.log(error); res.send(500); return; }
+            req.session.temp.indicatorSuccess = true;
+            req.session.indicatorsSubmitted = true;
+            res.redirect("/");
         });
     });
 });
+function getSeniorIndicators(callback) {
+    db.seniorIndicators.find().toArray(function(error, items) {
+        if(error) console.log(error);
+        else {
+            var indicators = [];
+            for(var i = 0; i < items.length; i++) {
+                var item = items[i];
+                indicators.push({
+                    _id: "" + item._id + "",
+                    name: item.name,
+                    description: item.description
+                });
+            }
+            Config.seniors.indicators = indicators;
+        }
+        if(callback) callback();
+    });
+}
 
 server.get('/ki_check', function (req, res) {
     render(req, res, "ki_check", {});
@@ -848,6 +910,7 @@ server.get('/hastening', function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var query = { zone: req.session.zone };
     db.missionary.find(query).toArray(function(error, missionaries) {
+        if(error) { console.log(error); res.send(500); return; }
         //Get the date for the report
         var months = [
             "January",
@@ -885,14 +948,22 @@ server.get('/hastening', function(req, res) {
             if(items.length == 1) return prefixSingular + " " + items[0];
             return prefixPlural + " " + items.slice(0, items.length - 1).join(", ") + " & " + items.pop();
         }
-        //Send the page
-        var data = {
-            reportDate: reportDate,
-            stake: req.session.zone,
-            zoneLeaders: listify(zoneLeaders, "Elder", "Elders"),
-            units: units
+        var query = {
+            $query: { stake: req.session.zone },
+            $orderby: { date: -1 }
         };
-        render(req, res, "hastening", data);
+        db.hastening.findOne(query, function(error, lastReport) {
+            if(error) { console.log(error); }
+            //Send the page
+            var data = {
+                reportDate: reportDate,
+                stake: req.session.zone,
+                zoneLeaders: listify(zoneLeaders, "Elder", "Elders"),
+                units: units,
+                lastReport: lastReport
+            };
+            render(req, res, "hastening", data);
+        });
     });
 });
 server.post('/hastening/submit', function(req, res) {
@@ -924,10 +995,10 @@ server.get('/forms', function(req, res) {
     render(req, res, "forms", {});
 });
 
-function getStandards() {
-    Config.standards = { elder: {}, sister: {} };
+function getStandards(callback) {
     db.standards.find().toArray(function(error, items) {
-        if(error) { console.log(error); return; }
+        if(error) { console.log(error); if(callback) callback(); return; }
+        Config.standards = { elder: {}, sister: {} };
         for(var i = 0; i < items.length; i++) {
             var item = items[i];
             var standards = Config.standards[item.elder ? "elder" : "sister"];
@@ -935,6 +1006,7 @@ function getStandards() {
             category[item.name] = item._id;
             standards[item.category] = category;
         }
+        if(callback) callback();
     });
 }
 server.get('/standards', function (req, res) {
@@ -999,19 +1071,36 @@ server.post('/standards/admin', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var deleted = req.body.deleted;
     var modified = req.body.modified;
+    var modifiedIds = [];
+    for(var id in modified) modifiedIds.push(id);
     var inserted = req.body.inserted;
-    for(var i = 0, length = deleted.length; i < length; i++) {
-        var query = { _id: new mongodb.ObjectID(deleted[i]) };
-        console.log("Deleting '" + deleted[i] + "'...");
-        db.standards.remove(query, dbLogIfError);
+    var i = -1;
+    function deleteStandard(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        if(++i < deleted.length) {
+            var query = { _id: new mongodb.ObjectID(deleted[i]) };
+            db.standards.remove(query, deleteStandard);
+        }
+        else {
+            i = -1;
+            updateStandard();
+        }
     }
-    for(var id in modified) {
-        var query = { _id: new mongodb.ObjectID(id) };
-        db.standards.update(query, modified[id], dbLogIfError);
+    function updateStandard(error, result) {
+        if(error) { console.log(error); res.send(500); return; }
+        if(++i < modifiedIds.length) {
+            var id = modifiedIds[i];
+            var query = { _id: new mongodb.ObjectID(id) };
+            db.standards.update(query, modified[id], updateStandard);
+        }
+        else {
+            db.standards.insert(inserted, function(error, result) {
+                if(error) { console.log(error); res.send(500); }
+                else getStandards(function() { res.send(); });
+            });
+        }
     }
-    db.standards.insert(inserted, dbLogIfError);
-    res.send();
-    getStandards();
+    deleteStandard();
 });
 server.get('/standards/standards.csv', function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
@@ -1181,7 +1270,7 @@ server.get('/historical_data', function (req, res) {
 server.get('/recommendations', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "recommendations", {
-        zoneName: req.session.zone || req.session.username,
+        zoneName: (req.session.position == "SISTER_TRAINING_LEADER" ? req.session.unit : req.session.zone) || req.session.username,
         zoneLeader: req.session.sso ? req.session.displayName : ""
     });
 });
@@ -1283,7 +1372,7 @@ server.post('/callsheet/db', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var collection = db.callsheet;
     if(req.body.action == "insert") {
-        var data = req.body.data, line;
+        var data = req.body.data;
         collection.remove({}, {w:1}, function (err, result) {
             if(err) { console.log(err); res.send(500, err); return; }
             collection.insert(data, {w:1}, function (err, result) {
@@ -1435,16 +1524,6 @@ server.get('/import/indicators.csv', function (req, res) {
                 for(var i in value) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
                 line[indexes.missionaries] = missionaries.join(" / ");
             }
-            //TODO: Catch this before INSERTING into the database
-            else if(key == "findingPotentials") {
-                var finding = 0, potentials = 0;
-                if(value.length > 1) {
-                    finding = value.substring(0, value.length - 2);
-                    potentials = value.substring(value.length - 2);
-                }
-                line[indexes["finding"]] = finding;
-                line[indexes["potentials"]] = potentials;
-            }
             else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
             else line[indexes[key]] = value;
         }
@@ -1525,17 +1604,7 @@ server.get('/import/indicators2.csv', function (req, res) {
         for(var key in doc) {
             if(key == "_id" || key == "missionaries") continue;
             var value = doc[key];
-            //TODO: Catch this before INSERTING into the database
-            if(key == "findingPotentials") {
-                var finding = 0, potentials = 0;
-                if(value.length > 1) {
-                    finding = value.substring(0, value.length - 2);
-                    potentials = value.substring(value.length - 2);
-                }
-                line[indexes["finding"]] = finding;
-                line[indexes["potentials"]] = potentials;
-            }
-            else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
+            if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
             else line[indexes[key]] = value;
         }
         for(var m in doc.missionaries) {
@@ -1599,14 +1668,6 @@ server.get('/import/stake_effectiveness_data.csv', function (req, res) {
             else if(name == "ward") line[key] = wardAlias[value] || value;
             else line[key] = value;
         }
-        //TODO: Catch this before INSERTING into the database
-        if(doc.findingPotentials) {
-            var value = doc.findingPotentials;
-            var finding = value.substring(0, value.length - 2);
-            var potentials = value.substring(value.length - 2);
-            line[17] = finding;
-            line[18] = potentials;
-        }
         data.push(line);
     });
 });
@@ -1662,14 +1723,6 @@ server.get('/import/indicators_by_month.csv', function (req, res) {
             }
             else if(name == "ward") line[key] = wardAlias[value] || value;
             else line[key] = value;
-        }
-        //TODO: Catch this before INSERTING into the database
-        if(doc.findingPotentials) {
-            var value = doc.findingPotentials;
-            var finding = value.substring(0, value.length - 2);
-            var potentials = value.substring(value.length - 2);
-            line[17] = finding;
-            line[18] = potentials;
         }
         data.push(line);
     });
@@ -1728,31 +1781,28 @@ server.get('/import/effectiveness_data.csv', function (req, res) {
             //else if(name == "ward") line[key] = wardAlias[value] || value;
             else line[key] = value;
         }
-        //TODO: Catch this before INSERTING into the database
-        if(doc.findingPotentials) {
-            var value = doc.findingPotentials;
-            var finding = value.substring(0, value.length - 2);
-            var potentials = value.substring(value.length - 2);
-            line[17] = finding;
-            line[18] = potentials;
-        }
         data.push(line);
     });
 });
 
 //Area Analysis
-server.get('/area_analysis', function (req, res) {
+server.get('/maps', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     render(req, res, "area", {});
     if(checkDaysPassed(Config.chapels.lastUpdate, 7)) updateChapels();
 });
 
+server.get("/force_chapel_update", function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    updateChapels();
+    res.send("Updating chapels...");
+});
 var updatingChapels = false;
 function updateChapels() {
     if(updatingChapels) return;
     updatingChapels = true;
     console.log("CHAPELS: Updating...");
-    db.ward.find().toArray(function(error, items) {
+    db.units.find().toArray(function(error, items) {
         if(error) { console.log(error); updatingChapels = false; return; }
         var index = -1, chapels = {};
         function update() {
@@ -1772,9 +1822,7 @@ function updateChapels() {
                 return;
             }
             var unit = items[index];
-            var unitName = unit.name.replace(/ /g, "+");
-            //TODO: Alter once the 'ward' table is updated to 'units'
-            if(unitName.substr(-7) != "+Branch") unitName += "+Ward";
+            var unitName = unit.name.replace(/ /g, "+") + (unit.branch ? "+Branch" : "+Ward");
             var uri = "https://www.lds.org/maps/services/search?query=" + unitName;
             request({ uri: uri, method: "GET" }, function(error, response, body) {
                 var status = response.statusCode, result;
@@ -1802,10 +1850,16 @@ function updateChapels() {
                         if(addy.zip) address += " " + addy.zip;
                         var name = addy.city ? capitalise(addy.city) : unit.name;
                         var position = [ bestResult.coordinates[1], bestResult.coordinates[0] ];
-                        chapels[address] = { name: name, address: address, position: position };
+                        if(chapels[address]) chapels[address].units.push(unit.name);
+                        else chapels[address] = {
+                            name: name,
+                            address: address,
+                            units: [ unit.name ],
+                            position: position
+                        };
                         var query = { _id: unit._id };
                         var data = { $set: { chapel: name, phone: bestResult.phone } };
-                        db.ward.update(query, data, dbLogIfError);
+                        db.units.update(query, data, dbLogIfError);
                     }
                     else console.log("CHAPELS: NO RESULTS FOR " + unitName + "!!!");
                     //Log the progress of updating all the chapels
@@ -1819,8 +1873,8 @@ function updateChapels() {
 }
 
 var areaAnalysisCollections = null;
-server.post('/area_analysis/units', function(req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
+server.post('/maps/units', function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN, true)) return;
     db.units.remove(function(error, result) {
         if(error) { console.log(error); res.send(500, error); }
         else db.units.insert(req.body.units, function(error, result) {
@@ -1829,44 +1883,13 @@ server.post('/area_analysis/units', function(req, res) {
         });
     });
 });
-server.post('/area_analysis/db', function (req, res) {
+server.post('/maps/db', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     var collection, id;
-    //Missionary area calculator
-    if(req.body.collection == "missionaryAreas") {
-        var date = new Date();
-        date.setDate(date.getDate() - 40);
-        var query = { date: { $gt: date } };
-        db.indicators.find(query).toArray(function(err, items) {
-            if(err) { console.log(err); res.send(500, err); }
-            else {
-                var result = [], areas = {};
-                for(var i = 0; i < items.length; i++) {
-                    var item = items[i];
-                    if(areas[item.area]) continue;
-                    areas[item.area] = true;
-                    var missionaries = [];
-                    for(var a = 0; a < item.missionaries.length; a++) {
-                        var name = item.missionaries[a];
-                        missionaries.push(name.substring(0, name.indexOf(',')));
-                    }
-                    result.push({
-                        _id: null,
-                        name: missionaries.join(' / '),
-                        ward: item.ward,
-                        area: item.area
-                    });
-                }
-                res.send(result);
-            }
-        });
-        return;
-    }
-    //--------------------------
     collection = areaAnalysisCollections[req.body.collection];
     if(req.body.action == "getall") {
-        if(req.session.auth < Auth.ADMIN) {
-            if(req.body.collection == "ward") {
+        if(req.session.auth < Auth.ADMIN && !req.session.senior) {
+            if(req.body.collection == "units") {
                 collection.findOne({ name: req.session.unit }, function(error, result) {
                     if(error) { console.log(error); res.send(500); }
                     else if(result) collection.find({ stake: result.stake }).toArray(function(err, items) {
@@ -1894,18 +1917,17 @@ server.post('/area_analysis/db', function (req, res) {
         });
     }
     else if(req.body.action == "insert") {
-        collection.insert(req.body.data, {w:1}, function (err, result) {
+        collection.insert(req.body.data, function(err, result) {
             if(err) { console.log(err); res.send(500, err); }
-            else { console.log(result); res.send(result); }
+            else { res.send(result); }
         });
     }
     else if(req.body.action == "update") {
         id = { _id: mongodb.ObjectID(req.body.id) };
         var data = req.body.data;
-        collection.update(id, { $set: data }, {w:1}, function(err, result) {
+        collection.update(id, { $set: data }, function(err, result) {
             if(err) { console.log(err); res.send(500, err); }
             else {
-                console.log(req.body.data);
                 collection.find(id).toArray(function(err, items) {
                     if(err) { console.log(err); res.send(500, err); }
                     else res.send(items, 200);
@@ -1950,31 +1972,6 @@ function csvTemplate(res, collection, headings) {
     }
     cursor.next(addRecord);
 }
-server.get('/area_analysis/flat_mapdata.csv', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    csvTemplate(res, db.flat, [
-        { dbName: "name", csvName: "Name" },
-        { dbName: "address", csvName: "Address" }
-    ]);
-});
-server.get('/area_analysis/chapel_mapdata.csv', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    csvTemplate(res, db.chapel, [
-        { dbName: "name", csvName: "Name" },
-        { dbName: "address", csvName: "Address" }
-    ]);
-});
-server.get('/area_analysis/area_mapdata.csv', function (req, res) {
-    if(Auth.require(req, res, Auth.ADMIN)) return;
-    csvTemplate(res, db.area, [
-        { dbName: "name", csvName: "Name" },
-        { dbName: "district", csvName: "District" },
-        { dbName: "zone", csvName: "Zone" },
-        { dbName: "ward", csvName: "Ward" },
-        { dbName: "flat", csvName: "Flat" },
-        { dbName: "missionaries", csvName: "Missionaries" }
-    ]);
-});
 
 server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
     console.log("ABM Admin Website running...");
@@ -1982,11 +1979,15 @@ server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
 
 //-------------
 function splitFindingPotentials(value) {
-    var finding = 0, potentials = 0;
+    var finding, potentials;
     value = value + "";
     if(value.length > 2) {
         finding = parseInt(value.substr(0, value.length - 2));
         potentials = parseInt(value.substr(-2));
+        if(potentials > finding * 10) {
+            finding = parseInt(value.substr(0, value.length - 3));
+            potentials = parseInt(value.substr(-1));
+        }
     }
     else if(value.length == 2) {
         if(value.charAt(0) == 1 && value.charAt(1) > 2) finding = parseInt(value);
@@ -1996,7 +1997,7 @@ function splitFindingPotentials(value) {
         }
     }
     else if(value.length == 1) finding = parseInt(value);
-    return { finding: finding, potentials: potentials };
+    return { finding: finding || 0, potentials: potentials || 0 };
 }
 function toWeekStart(date) {
     date.setUTCDate(date.getUTCDate() - (date.getUTCDay() || 7) + 1);

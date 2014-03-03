@@ -19,7 +19,7 @@ block content
           span President
           input#president(type="text" name="stakePresident" placeholder="[Stake President Surname Here]")
           span Goal
-          input#goal(type="text" name="goal")
+          input#goal(type="text" name="goal" value=lastReport ? lastReport.goal : "")
           span.right (Stake President / Zone Leader Missionary Analysis)
         div
           span Zone Leaders:
@@ -95,21 +95,20 @@ block content
         - var i = 0;
         - for(var unit in units)
           tr(class=(++i % 2 ? "band" : ""))
-            td
-              input(type="text" name="unit" + i + "_name" value=unit)
+            td #{unit}
             td
               input(type="text" name="unit" + i + "_dateReviewed")
             - for(var month = 1; month <= 12; month++)
               td
-                input(type="text" name="unit" + i + "_month" + month)
-            td(id=unit + "_ytd")
+                input(type="text" name="unit" + i + "_month" + month value=lastReport ? lastReport.units[i - 1]["month" + month] : "")
+            td(id="unit" + i + "_ytd")
             td
-              input(type="text" name="unit" + i + "_goal")
+              input(type="text" name="unit" + i + "_goal" value=lastReport ? lastReport.units[i - 1].goal : "")
             td(id="unit" + i + "_remaining")
         tr(class="totals")
           td(colspan=2) Total
           - for(var month = 1; month <= 12; month++)
-            td(id="total" + month)
+            td(id="total_month" + month)
           td#total_ytd
           td#total_goal
           td#total_remaining

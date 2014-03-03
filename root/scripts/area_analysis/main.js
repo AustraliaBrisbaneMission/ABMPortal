@@ -33,6 +33,25 @@ zip.workerScriptsPath = "/scripts/";
 //Forms
 var Chapels, Flats, Areas, Units, Directions, Missionaries, AreaSplits;
 
+//Function to easily make linked lists in forms
+function openListLink(e) {
+    e.preventDefault();
+    this.form.open(this.item);
+}
+function listifyLinks(form, items) {
+    if(!items) return "";
+    var links = [];
+    for(var i = 0; i < items.length; i++) {
+        var item = items[i];
+        var link = $.create("A", { href: "#" + item }, item);
+        link.form = form;
+        link.item = item;
+        link.on("click", openListLink);
+        links.push($.create("DIV", link));
+    }
+    return $.create("DIV", links);
+}
+
 function getChapelPath(show, callback) {
     var distance = 0;
     for(var a = 0; a < Chapels.items; a++) {
@@ -187,7 +206,7 @@ function snap(position) {
     //Get every VISIBLE point to snap to
     var closest = {}, distance, x, y;
     var markerPos = snapOverlay.getProjection().fromLatLngToDivPixel(position);
-    $.each(snapPoints, function(key, point) {
+    $.each(snapPoints, function(point) {
         x = point.x - markerPos.x;
         y = point.y - markerPos.y;
         distance = Math.sqrt(x * x + y * y);
@@ -209,9 +228,9 @@ function enableSnapping(marker) {
 }
 function dragStart(e) {
     var snapper, pos;
-    $.each(Areas.items, function(key, area) {
+    $.each(Areas.items, function(area) {
         if(area != Areas.currentItem) {
-            $.each(area.points, function(key, point) {
+            $.each(area.points, function(point, index) {
                 pos = snapOverlay.getProjection().fromLatLngToDivPixel(point);
                 snapper = new google.maps.Marker({
                     position: point,
@@ -223,7 +242,7 @@ function dragStart(e) {
                     y: pos.y,
                     snapper: snapper,
                     area: area,
-                    index: key
+                    index: index
                 });
             });
         }
@@ -237,7 +256,7 @@ function drag(e) {
 }
 function dragEnd(e) {
     drag(e);
-    $.each(snapPoints, function(key, point) { point.snapper.hide(); });
+    $.each(snapPoints, function(point) { point.snapper.hide(); });
     snapPoints = [];
 }
 
@@ -363,14 +382,17 @@ function initialise() {
     
     UnitLabels = new Form({ name: "Display Unit Labels:", show: false, noDb: true });
     Units = new Form({
-        name: "ward",
+        name: "units",
         displayName: "Units",
         show: false,
         fields: {
-            name: { displayName: "Name" },
+            name: {
+                displayName: "Name",
+                render: function(name) { return name + (Units.currentItem.branch ? " Branch" : " Ward"); }
+            },
             chapel: {
                 displayName: "Chapel",
-                render: function(chapel) { return chapel.name; }
+                render: function(chapel) { return listifyLinks(Chapels, [ chapel.name ]); }
             },
             phone: { displayName: "Phone Number" },
             boundaries: { noDisplay: true }
@@ -520,17 +542,30 @@ function initialise() {
                             name: name,
                             branch: branch,
                             chapel: null,
+                            phone: null,
                             stake: stake,
                             unitId: unitId,
                             boundaries: boundaries
                         });
                     }
                 }
-                console.log("Uploading units...");
-                var data = { units: units };
-                $.post("/area_analysis/units", data, function(result) {
-                    console.log("Success!");
-                });
+                //Upload in chunks to avoid size limit
+                var status = document.getElementById("unitsStatus");
+                var index = -1;
+                function nextUnit() {
+                    if(++index >= units.length) {
+                        status.textContent = units.length + " units successfully uploaded!";
+                        $.get("/force_chapel_update");
+                        document.getElementById("unitsInput").disabled = false;
+                        return;
+                    }
+                    status.textContent = "Uploading unit " + (index + 1) + " of " + units.length + "...";
+                    var unit = units[index];
+                    var data = { action: "insert", collection: "units", data: unit };
+                    $.post("/maps/db", data, nextUnit);
+                }
+                var data = { action: "removeall", collection: "units" };
+                $.post("/maps/db", data, nextUnit);
             }
         }
     });
@@ -567,11 +602,6 @@ function initialise() {
             }
             Flats.marker.show(false);
         },
-        variables: {
-            marker: new map.Marker({
-                icon: icons.flatHighlight
-            })
-        },
         onInitialise: function(items) {
             Areas.findFlats();
             return items;
@@ -591,7 +621,7 @@ function initialise() {
                 });
                 if(result) {
                     flat.position = result.position;
-                    $.post("/area_analysis/db", {
+                    $.post("/maps/db", {
                         action: "update",
                         collection: "flat",
                         id: flat._id,
@@ -607,54 +637,71 @@ function initialise() {
             }
             return flat;
         },
-        onUpload: function(data, callback) {
-            function getCell(cellName) {
-                var cells = {
-                    NAME: 0,
-                    ID: 1,
-                    ADDRESS: 2,
-                    CITY: 3,
-                    AREAS: 4,
-                    TYPE: 5,
-                    STATUS: 6
-                };
-                var data = line[cells[cellName]];
-                if(cellName == "AREAS" && data) {
-                    var areas = data.split(",");
-                    for(var i = 0; i < areas.length; i++) areas[i] = areas[i].trim();
-                    return areas;
-                }
-                return data ? data.trim() : data;
-            }
-            function getRecord() {
-                return {
-                    name: getCell("NAME"),
-                    address: getCell("ADDRESS") + ", " + getCell("CITY"),
-                    position: null,
-                    id: getCell("ID"),
-                    areas: getCell("AREAS")
-                };
-            }
-            var line;
-            var dbData = [];
-            var previousLineData = {};
-            var dataLength = data.length;
-            if(dataLength) {
-                line = data[0];
-                previousLineData = getRecord();
-                for(var i = 1; i < dataLength; i++) {
-                    line = data[i];
-                    if(getCell("ID")) {
-                        dbData.push(previousLineData);
-                        previousLineData = getRecord();
+        variables: {
+            marker: new map.Marker({
+                icon: icons.flatHighlight
+            }),
+            uploaded: function(data) {
+                function getCell(cellName) {
+                    var cells = {
+                        NAME: 0,
+                        ID: 1,
+                        ADDRESS: 2,
+                        CITY: 3,
+                        AREAS: 4,
+                        TYPE: 5,
+                        STATUS: 6
+                    };
+                    var data = line[cells[cellName]];
+                    if(cellName == "AREAS" && data) {
+                        var areas = data.split(",");
+                        for(var i = 0; i < areas.length; i++) areas[i] = areas[i].trim();
+                        return areas;
                     }
-                    else if(getCell("AREAS")) {
-                        previousLineData.areas = previousLineData.areas.concat(getCell("AREAS"));
-                    }
+                    return data ? data.trim() : data;
                 }
-                dbData.push(previousLineData);
+                function getRecord() {
+                    return {
+                        name: getCell("NAME"),
+                        address: getCell("ADDRESS") + ", " + getCell("CITY"),
+                        position: null,
+                        id: getCell("ID"),
+                        areas: getCell("AREAS")
+                    };
+                }
+                var line;
+                var dbData = [];
+                var previousLineData = {};
+                var dataLength = data.length;
+                if(dataLength) {
+                    line = data[0];
+                    previousLineData = getRecord();
+                    for(var i = 1; i < dataLength; i++) {
+                        line = data[i];
+                        if(getCell("ID")) {
+                            dbData.push(previousLineData);
+                            previousLineData = getRecord();
+                        }
+                        else if(getCell("AREAS")) {
+                            previousLineData.areas = previousLineData.areas.concat(getCell("AREAS"));
+                        }
+                    }
+                    dbData.push(previousLineData);
+                }
+                $.post("/maps/db", { action: "removeall", collection: "flat" }, function() {
+                    var data = {
+                        action: "insert",
+                        collection: "flat",
+                        data: dbData
+                    };
+                    $.post("/maps/db", data, function(result) {
+                        Flats.items = [];
+                        Flats.initialise();
+                        status.textContent = "Flats uploaded successfully!";
+                        input.disabled = false;
+                    });
+                });
             }
-            callback(dbData);
         }
     });
     
@@ -664,6 +711,10 @@ function initialise() {
         fields: {
             name: { displayName: "Name" },
             address: { displayName: "Address" },
+            units: {
+                displayName: "Units",
+                render: function(units) { return listifyLinks(Units, units); }
+            },
             position: { noDisplay: true }
         },
         onOpen: function(itemIndex) {
@@ -693,7 +744,7 @@ function initialise() {
                 });
                 if(result) {
                     chapel.position = result.position;
-                    $.post("/area_analysis/db", {
+                    $.post("/maps/db", {
                         action: "update",
                         collection: "chapel",
                         id: chapel._id,
@@ -710,23 +761,6 @@ function initialise() {
             return chapel;
         },
         onInitialise: Units.findChapels
-    });
-    
-    Missionaries = new Form({
-        name: "missionaryAreas",
-        displayName: "Areas by Missionaries",
-        fields: {
-            name: { displayName: "Name" },
-            ward: { displayName: "Ward" },
-            area: { displayName: "Area" }
-        },
-        onOpen: function(itemIndex) {
-            var wardName = Missionaries.currentItem.ward;
-            for(var i = 0; i < Units.items.length; i++) {
-                var ward = Units.items[i];
-                if(ward.name == wardName) ward.poly.pan();
-            }
-        }
     });
     
     Areas = new Form({
@@ -923,7 +957,7 @@ function initialise() {
                     var found = false;
                     for(var b = 0, flatLength = flats.length; b < flatLength; b++) {
                         var flat = flats[b];
-                        var flatAreas = flat.areas;
+                        var flatAreas = flat.areas || [];
                         for(var c = 0, flatAreaLength = flatAreas.length; c < flatAreaLength; c++) {
                             var flatArea = flatAreas[c];
                             if(areaName == flatArea) {
@@ -1116,12 +1150,30 @@ function initialise() {
     //Settings menu
     if(User.auth >= Auth.ADMIN) {
         var menu = document.getElementById("settingsMenu");
+        var help = document.createElement("SPAN");
+        help.className = "helpMessage";
+        help.textContent = "IMPORTANT: For instructions on how to upload " +
+            "this data, see the ABM Portal documentation";
+        menu.appendChild(help);
+        //Import units
+        var heading = document.createElement("H2");
+        heading.textContent = "Import Units";
+        menu.appendChild(heading);
+        var div = document.createElement("DIV");
+        var unitsStatus = document.createElement("SPAN");
+        unitsStatus.id = "unitsStatus";
+        div.appendChild(unitsStatus);
+        menu.appendChild(div);
         var input = document.createElement("INPUT");
+        input.id = "unitsInput";
         input.type = "file";
+        input.setAttribute("Accept", ".kmz");
         input.multiple = true;
         input.addEventListener("change", function(e) {
-            e.preventDefault();
             var files = e.target.files;
+            if(!files.length) return;
+            unitsStatus.textContent = "Processing KMZ unit files...";
+            input.disabled = true;
             var results = [];
             var currentFile = 0;
             function readZip(file) {
@@ -1147,9 +1199,52 @@ function initialise() {
                     });
                 }, onError);
             }
-            if(files.length) readZip(files[0]);
+            readZip(files[0]);
         }, false);
         menu.appendChild(input);
+        //Import flats
+        var heading = document.createElement("H2");
+        heading.textContent = "Import Flats";
+        menu.appendChild(heading);
+        var div = document.createElement("DIV");
+        var flatsStatus = document.createElement("SPAN");
+        flatsStatus.id = "flatsStatus";
+        div.appendChild(flatsStatus);
+        menu.appendChild(div);
+        var input = document.createElement("INPUT");
+        input.id = "flatsInput";
+        input.type = "file";
+        input.setAttribute("Accept", ".csv");
+        input.addEventListener("change", function(e) {
+            var file = e.target.files[0];
+            if(!file) return;
+            flatsStatus.textContent = "Uploading flats...";
+            input.disabled = true;
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                //CSV format
+                //This weird character always appears in the file (???)
+                var text = e.target.result.replace(new RegExp(String.fromCharCode(65533), "g"), "");
+                var lines = CSV.csvToArray(text);
+                lines.splice(0, 1);
+                Flats.uploaded(lines);
+                /*
+                //Excel format (BUGGY)
+                var cfb = XLS.CFB.read(e.target.result, { type: "binary" });
+                var workbook = XLS.parse_xlscfb(cfb);
+                for(var sheet in workbook) {
+                    var result = XLS.utils.sheet_to_row_object_array(workbook.Sheets[sheet]);
+                    if(result.length) {
+                        form.onUpload(result);
+                        return;
+                    }
+                }
+                */
+            };
+            reader.readAsText(file);
+        }, false);
+        menu.appendChild(input);
+        //Open menu button
         document.getElementById("settings").addEventListener("click", function(e) {
             e.preventDefault();
             menu.visible = !menu.visible;

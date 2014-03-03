@@ -24,9 +24,8 @@ var Form = function(properties) {
     form.onItemInitialise = properties.onItemInitialise || function(item) { return item; };
     form.onShow = properties.onShow || function() {};
     form.onHide = properties.onHide || function() {};
-    form.onUpload = properties.onUpload;
     if(properties.variables) {
-        $.each(properties.variables, function(name, value) {
+        $.each(properties.variables, function(value, name) {
             form[name] = value;
         });
     }
@@ -72,7 +71,7 @@ var Form = function(properties) {
         //Display the table
         var table = document.createElement("TABLE");
         table.className = "item";
-        $.each(form.fields, function(fieldName, field) {
+        $.each(form.fields, function(field, fieldName) {
             if(field.noDisplay) return;
             var value = "";
             if(item) {
@@ -95,67 +94,8 @@ var Form = function(properties) {
         });
         document.getElementById("form_open").innerHTML = "";
         document.getElementById("form_open").appendChild(table);
-        //Add upload dialog if necessary
-        if(form.onUpload && User.auth >= Auth.ADMIN) {
-            var upload = document.createElement("INPUT");
-            upload.type = "file";
-            upload.setAttribute("Accept", ".csv");
-            upload.addEventListener("change", uploaded, false);
-            document.getElementById("form_open").appendChild(upload);
-            
-            var download = document.createElement("A");
-            download.href = "/area_analysis/" + form.name + "_mapdata.csv";
-            download.textContent = "Download " + form.displayName + " Data";
-            document.getElementById("form_open").appendChild(download);
-        }
         form.state = "open";
     };
-    var uploadSpan = document.createElement("SPAN");
-    function uploaded(e) {
-        var file = e.target.files[0], reader = new FileReader();
-        reader.onload = function(e) {
-            //CSV format
-            var text = e.target.result.replace(new RegExp(String.fromCharCode(65533), "g"), "");
-            var lines = CSV.csvToArray(text);
-            lines.splice(0, 1);
-            form.onUpload(lines, insert);
-            /*
-            //Excel format (BUGGY)
-            var cfb = XLS.CFB.read(e.target.result, { type: "binary" });
-            var workbook = XLS.parse_xlscfb(cfb);
-            for(var sheet in workbook) {
-                var result = XLS.utils.sheet_to_row_object_array(workbook.Sheets[sheet]);
-                if(result.length) {
-                    form.onUpload(result);
-                    return;
-                }
-            }
-            */
-        };
-        reader.readAsText(file);
-        //Create status message
-        uploadSpan.textContent = "Uploading...";
-        this.parentNode.appendChild(uploadSpan);
-        this.remove();
-    }
-    function insert(data) {
-        console.log(data);
-        $.post("/area_analysis/db", {
-            action: "removeall",
-            collection: form.name
-        }, function(result) {
-            $.post("/area_analysis/db", {
-                action: "insert",
-                collection: form.name,
-                data: data
-            }, function(result) {
-                form.items = [];
-                form.initialise();
-                document.getElementById("form_open").appendChild(uploadSpan);
-                uploadSpan.textContent = "Successfully uploaded!";
-            });
-        });
-    }
     form.destroy = function() {
         Form.currentForm.innerHTML = "";
         form.onClose();
@@ -168,16 +108,17 @@ var Form = function(properties) {
     form.reset = function() {
         form.open(form.currentItemIndex);
     };
+    function listItemClicked(e) {
+        e.preventDefault();
+        form.open(this.index);
+    }
     form.renderList = function() {
         form.list.innerHTML = "";
-        var list = $(form.list);
-        $.each(form.items, function(index, item) {
-            list.append($('<li></li>').append($('<a></a>').attr({
-                href: "#" + item.name
-            }).text(item.name).click(function(e) {
-                form.open(index);
-                e.preventDefault();
-            })));
+        $.each(form.items, function(item, index) {
+            var a = $.create("A", { href: "#" + item.name }, item.name);
+            a.index = index;
+            a.on("click", listItemClicked);
+            $.create("LI", { parent: form.list }, a);
         });
     };
     form.show = function() {
@@ -209,7 +150,7 @@ var Form = function(properties) {
             });
             var items = form.items = response;
             form.onInitialise(items);
-            $.each(items, function(index, item) {
+            $.each(items, function(item, index) {
                 item.form = form;
                 form.onItemInitialise(item);
             });
@@ -218,12 +159,10 @@ var Form = function(properties) {
             form.ready = true;
         }
         //Get items from database
-        if(!form.noDb) $.ajax({
-            type: "POST",
-            url: "/area_analysis/db",
-            data: { action: "getall", collection: form.name },
-            success: success
-        });
+        if(!form.noDb) $.post("/maps/db", {
+            action: "getall",
+            collection: form.name
+        }, success);
         //Add form to list
         var container = document.createElement('DIV');
         container.className = "list_container";

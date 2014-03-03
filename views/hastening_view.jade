@@ -13,7 +13,6 @@ block content
         img(src="/stylesheets/images/abm.png")
         div
           h1.heading.big Stake Hastening the Work Report
-          //input.stake.big(type="text" name="stake" placeholder="[Stake Here]" value="#{stake}")
           span#stake.big #{stake} Stake
         div.underline
           span#president President
@@ -21,7 +20,7 @@ block content
           span#goal
           span.right (Stake President / Zone Leader Missionary Analysis)
         div
-          span Zone Leaders:
+          span Zone Leaders: 
           span#zoneLeaders
           span#date.right
       table#units
@@ -84,15 +83,14 @@ block content
             td(id="unit" + i + "_dateReviewed")
             - for(var month = 1; month <= 12; month++)
               td(id="unit" + i + "_month" + month)
-            td(id=unit + "_ytd")
+            td(id="unit" + i + "_ytd")
             td(id="unit" + i + "_goal")
             td(id="unit" + i + "_remaining")
         tr(class="totals")
           td(colspan=2) Total
           - for(var month = 1; month <= 12; month++)
-            td(id="total" + month)
+            td(id="total_month" + month)
           td#total_ytd
           td#total_goal
           td#total_remaining
-    button#submitButton Submit Report
   div#reports Loading...

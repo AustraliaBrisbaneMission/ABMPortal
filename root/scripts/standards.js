@@ -67,6 +67,7 @@ function render(data) {
             });
         });
     });
+    $("#standards").on("submit", function(e) { e.preventDefault(); submit(); });
 }
 
 var deletedStandards = [];
@@ -171,6 +172,7 @@ function loadAdmin(data) {
         addLink.container = categoryDiv;
         addLink.on("click", addCategory);
     });
+    $("#adminForm").on("submit", function(e) { e.preventDefault(); submitAdmin(); });
 }
 
 function submitAdmin() {
@@ -214,8 +216,6 @@ window.on("load", function() {
         $("#submitButton").style.display = "";
         loadAdmin(response);
     });
-    $("#standards").on("submit", function(e) { e.preventDefault(); submit(); });
-    $("#adminForm").on("submit", function(e) { e.preventDefault(); submitAdmin(); });
 });
 
 function submit() {

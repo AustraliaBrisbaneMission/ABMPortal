@@ -3,10 +3,8 @@ extend essentials
 block header
   title Mission Maps - #{siteName}
   script var User = { unit: "#{unit}", auth: #{auth} }; var Auth = { ADMIN: 5 };
+  script(type="text/javascript" src="/scripts/abm_utils.js")
   script(type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBDZBfXFxGHbBCsqEZcQjxFyJw_XRwNRNg&sensor=true")
-  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
-  script(type="text/javascript" src="https://code.jquery.com/ui/1.10.3/jquery-ui.js")
-  link(rel="stylesheet", href="https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css")
   script(type="text/javascript" src="/scripts/xls.js")
   script(type="text/javascript" src="/scripts/zip.js")
   script(src="/scripts/ucsv-1.1.0-min.js" type="text/javascript")
@@ -16,7 +14,6 @@ block header
   script(type="text/javascript" src="/scripts/area_analysis/point.js")
   script(type="text/javascript" src="/scripts/area_analysis/main.js")
   script(src="/scripts/xml2json.js" type="text/javascript")
-  script(type="text/javascript" src="/scripts/ajax.js")
   link(rel="stylesheet", href="/stylesheets/area.css")
 
 block body

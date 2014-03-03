@@ -109,6 +109,21 @@ $.keySort = function(obj, byKey, descending) {
     });
     return items;
 };
+//TODO: Finish this...
+$.propertySort = function(obj, property, descending) {
+    var getValues = byKey ?
+        function(a, b) { return { a: a.key, b: b.key }; } :
+        function(a, b) { return { a: a.value, b: b.value }; };
+    var items = [];
+    for(var key in obj) items.push({ value: obj[key], key: key });
+    items.sort(function(a, b) {
+        var values = getValues(a, b);
+        if(values.a > values.b) return descending ? -1 : 1;
+        if(values.a < values.b) return descending ? 1 : -1;
+        return 0;
+    });
+    return items;
+};
 $.parseDate = function(dateString) {
     var parts = /^\s*(\d{4})-(\d+)-(\d+)\s*$/.exec(dateString);
     if(!parts) return null;

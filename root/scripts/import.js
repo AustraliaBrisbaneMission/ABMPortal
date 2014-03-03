@@ -11,6 +11,9 @@ function importIndicators(csv) {
     var MISSIONARY1_COLUMN = 7;
     var MISSIONARY2_COLUMN = 8;
     var MISSIONARY3_COLUMN = 9;
+    var MISSIONARY4_COLUMN = 10;
+    var MISSIONARY5_COLUMN = 11;
+    var MISSIONARY6_COLUMN = 12;
     
     //Format the indicator names that come from IMOS
     var indicatorNames = {
@@ -59,32 +62,38 @@ function importIndicators(csv) {
     var records = {};
     for(var i = 1; i < lines.length; i++) {
         var line = lines[i];
-        if(line.length < KI_VALUE_COLUMN ||
-            new Date(line[DATE_COLUMN]) < new Date("2013-8-1")) continue;
-        var recordName = line[DATE_COLUMN] + " " + line[AREA_COLUMN];
+        if(line.length < KI_VALUE_COLUMN) continue;
+        var date = formatDate(new Date(line[DATE_COLUMN]));
+        if(date < "2013-08-01") continue;
+        var recordName = date + " " + line[AREA_COLUMN];
         var record = records[recordName];
-        if(record) record[indicatorName(line[KI_TYPE_COLUMN])] = line[KI_VALUE_COLUMN];
-        else {
+        if(!record) {
             var missionaries = [];
-            if(line[MISSIONARY1_COLUMN]) missionaries.push(line[MISSIONARY1_COLUMN]);
-            if(line[MISSIONARY2_COLUMN]) missionaries.push(line[MISSIONARY2_COLUMN]);
-            if(line[MISSIONARY3_COLUMN]) missionaries.push(line[MISSIONARY3_COLUMN]);
+            for(var missionary = 0; missionary < 6; missionary++) {
+                var value = line[MISSIONARY1_COLUMN + missionary];
+                if(value && value.length > 1) missionaries.push(value);
+            }
             record = {
-                date: line[DATE_COLUMN],
+                date: date,
                 area: line[AREA_COLUMN],
                 district: line[DISTRICT_COLUMN],
                 zone: getZone(line[ZONE_COLUMN]),
                 ward: line[WARD_COLUMN],
                 missionaries: missionaries
             };
-            record[indicatorName(line[KI_TYPE_COLUMN])] = parseInt(line[KI_VALUE_COLUMN], 10);
             records[recordName] = record;
         }
+        if(line[KI_TYPE_COLUMN] == "Finding / Potentials") {
+            var result = splitFindingPotentials(line[KI_VALUE_COLUMN]);
+            record.finding = result.finding;
+            record.potentials = result.potentials;
+        }
+        else record[indicatorName(line[KI_TYPE_COLUMN])] = parseInt(line[KI_VALUE_COLUMN], 10);
     }
     
     //Convert to array of database records
     var output = [];
-    $.each(records, function(date, record) { output.push(record); });
+    $.each(records, function(key, record) { output.push(record); });
     var data = { action: "insert", collection: "indicators", data: output };
     upload(data, function(result) {
         $('#ki_status').text("Updated Successfully!");
@@ -117,10 +126,6 @@ function importFlats(csv) {
         $('#flat_status').text("Updated Successfully!");
     });
     $('#flat_status').text("Uploading...");
-}
-
-function importMissionaries(csv) {
-    
 }
 
 //Units assigned to areas
@@ -1080,7 +1085,6 @@ $(window).load(function() {
         );
     }
     importButton("ki", "Key Indicators by Date", "indicators", importIndicators);
-    importButton("ms", "Missionary Organization", "missionaries", importMissionaries);
     //2013
     $('#imports').append(
         $('<div id="old_container2013"></div>').append(
@@ -1385,4 +1389,25 @@ function upload(data, success) {
         });
     }
     next();
+}
+function splitFindingPotentials(value) {
+    var finding, potentials;
+    value = value + "";
+    if(value.length > 2) {
+        finding = parseInt(value.substr(0, value.length - 2));
+        potentials = parseInt(value.substr(-2));
+        if(potentials > finding * 10) {
+            finding = parseInt(value.substr(0, value.length - 3));
+            potentials = parseInt(value.substr(-1));
+        }
+    }
+    else if(value.length == 2) {
+        if(value.charAt(0) == 1 && value.charAt(1) > 2) finding = parseInt(value);
+        else {
+            finding = parseInt(value.charAt(0));
+            potentials = parseInt(value.charAt(1));
+        }
+    }
+    else if(value.length == 1) finding = parseInt(value);
+    return { finding: finding || 0, potentials: potentials || 0 };
 }

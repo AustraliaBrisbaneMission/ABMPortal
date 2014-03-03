@@ -15,10 +15,10 @@ block content
       It should be submitted by the end of week 4.
   form#recommendations
     div
-      span Zone:
-      input(type="text" name="zone" value="#{zoneName}")
-      span Zone Leader:
-      input(type="text" name="zone_leader" value="#{zoneLeader}")
+      span #{elder ? "" : "Sister"} Zone:
+      input(type="text" name="zone" value=(position == "SISTER_TRAINING_LEADER" ? unit : zone) || username)
+      span #{elder ? "Zone" : "Sister Training"} Leader:
+      input(type="text" name="zone_leader" value=(sso ? displayName : ""))
     div
       div#areas
       input(type="button" value="Add Area" onclick="addArea()")

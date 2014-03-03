@@ -23,7 +23,7 @@ function render(data) {
     ]);
     var indicators = data.indicators;
     $.each(indicators, function(indicator) {
-        $.create("TH", { parent: header }, indicator.name);
+        $.create("TH", { parent: header, alt: indicator.description }, indicator.name);
     });
     //Organise reports by date then missionary
     var reports = {};
@@ -60,12 +60,12 @@ function render(data) {
             $.create("TD", { parent: actualRow, rowSpan: 2, className: "missionary" }, missionary);
             var actuals = report.actuals || {};
             $.each(indicators, function(indicator) {
-                $.create("TD", { parent: actualRow }, actuals[indicator.id]);
+                $.create("TD", { parent: actualRow }, actuals[indicator._id]);
             });
             var goals = report.goals || {};
             var goalRow = $.create("TR", goalOptions);
             $.each(indicators, function(indicator) {
-                $.create("TD", { parent: goalRow }, goals[indicator.id]);
+                $.create("TD", { parent: goalRow }, goals[indicator._id]);
             });
         });
     }, true);
@@ -110,22 +110,22 @@ function loadAdmin(data) {
     }
     
     $.each(data.indicators, function(indicator) {
-        addIndicator(null, indicator.id, indicator.name, indicator.description);
+        addIndicator(null, indicator._id, indicator.name, indicator.description);
     });
     $("#addLink").on("click", addIndicator);
 }
 
 function submitAdmin(e) {
     e.preventDefault();
-    var modified = {}, inserted = [];
+    var modified = [], inserted = [];
     var children = $("#adminIndicators").children;
     for(var i = 0; i < children.length; i++) {
         var container = children[i];
         var name = container.nameInput.value.trim();
         var description = container.descriptionInput.value.trim();
         if(!name.length || !description.length) continue;
-        var record = { name: name, description: description };
-        if(container._id) modified[container._id] = record;
+        var record = { id: container._id, name: name, description: description };
+        if(container._id) modified.push(record);
         else inserted.push(record);
     }
     var data = {

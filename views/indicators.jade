@@ -6,16 +6,14 @@ form#indicators(action="/indicators/submit" method="post")
   table
     tr
       th Key Indicator
-      th Previous Week's Goals
       th Previous Week's Actuals
       th This Week's Goals
     - var i = 0;
     each indicator in indicators
       tr(class=(++i % 2 ? "band" : ""))
         td.ki_column #{indicator.description}
-        td.previous_goals_column #{indicator.lastWeekGoal}
         td.previous_actuals_column
           input(type="text" name="lastWeekActual_" + indicator.id id="actual" + i value=actuals[indicator.id])
         td.this_goals_column
           input.indicators(type="text" name="thisWeekGoal_" + indicator.id id="goal" + i value=goals[indicator.id])
-  input#submit(type="submit" value="Save")
+  input#submit(type="submit" value=indicatorsSubmitted ? "Update" : "Save")

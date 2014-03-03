@@ -58,9 +58,9 @@ block body
           if auth >= 5
             li
               a(href="/historical_data" target="_blank") Historical Data
-          if auth >= 4
+          if auth >= 4 || senior
             li
-              a(href="/area_analysis") Mission Maps
+              a(href="/maps") Mission Maps
           if auth >= 5
             li
               a(href="/admin/users") Users
