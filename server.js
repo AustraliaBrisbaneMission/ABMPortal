@@ -657,7 +657,7 @@ var Auth = {
             req.session.imos = true;
             //Sync indicators for next week
             var nextWeek = new Date(formattedDate);
-            nextWeek.setDate(nextWeek.getDate() + 7);
+            nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
             console.log("Date = " + date + " & Next Week = " + nextWeek);
             setTimeout(function() { Auth.updateIndicators(req, nextWeek); }, 10000);
             //Update latest update

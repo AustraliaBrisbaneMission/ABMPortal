@@ -31,7 +31,7 @@ var areaSettings = {
 zip.workerScriptsPath = "/scripts/";
 
 //Forms
-var Chapels, Flats, Areas, Units, Directions, Missionaries, AreaSplits;
+var Chapels, Flats, Areas, Units, Directions, AreaSplits;
 
 //Function to easily make linked lists in forms
 function openListLink(e) {
