@@ -2,10 +2,10 @@ extend essentials
 
 block header
   title Mission Maps - #{siteName}
-  script var User = { unit: "#{unit}", auth: #{auth} }; var Auth = { ADMIN: 5 };
+  script var User = { area: "#{area}", unit: "#{unit}", auth: #{auth} }; var Auth = { ADMIN: 5 };
   script(type="text/javascript" src="/scripts/abm_utils.js")
   script(type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBDZBfXFxGHbBCsqEZcQjxFyJw_XRwNRNg&sensor=true")
-  script(type="text/javascript" src="/scripts/xls.js")
+  //script(type="text/javascript" src="/scripts/xls.js")
   script(type="text/javascript" src="/scripts/zip.js")
   script(src="/scripts/ucsv-1.1.0-min.js" type="text/javascript")
   script(type="text/javascript" src="/scripts/area_analysis/cluster.js")
@@ -20,7 +20,6 @@ block body
   div#links
     a.title(href="/")
       h1 Australia Brisbane Mission
-    if auth >= 5
-      a#settings(href="#") Settings
+    a#settings(href="#") Settings
   div#settingsMenu(style="display:none")
   div#map

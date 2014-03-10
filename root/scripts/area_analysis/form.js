@@ -38,6 +38,7 @@ var Form = function(properties) {
         if(itemIndex === undefined) {
             item = form.currentItem = null;
             form.currentItemIndex = 0;
+            form.onOpen();
         }
         else {
             if(isNaN(itemIndex)) {
@@ -232,10 +233,13 @@ Form.openForm = null;
 Form.toggled = true;
 Form.toggle = function(show) {
     Form.toggled = show !== undefined ? show : !Form.toggled;
-    Form.currentForm.style.display = Form.list.style.display = Form.toggled ? '' : 'none';
+    Form.currentForm.style.display =
+        Form.list.style.display =
+        Form.search.style.display = Form.toggled ? '' : 'none';
 };
 //Elements
 Form.element = null;
+Form.search = null;
 Form.list = null;
 Form.currentForm = null;
 Form.checkReady = function() {
@@ -251,6 +255,16 @@ Form.checkReady = function() {
 };
 Form.initialiseForms = function() {
     var element = Form.element;
+    Form.search = document.createElement('DIV');
+    Form.search.id = "form_search";
+    var searchInput = document.createElement("INPUT");
+    searchInput.type = "text";
+    searchInput.placeholder = "Search...";
+    searchInput.onPick = function(item, form) { form.open(item); };
+    searchInput.on("change", function(e) { this.value = ""; });
+    searchInput.picker = new PointPicker([ searchInput ]);
+    Form.search.appendChild(searchInput);
+    
     var formOpen = document.createElement('DIV');
     formOpen.id = "form_open";
     Form.currentForm = formOpen;
@@ -268,6 +282,7 @@ Form.initialiseForms = function() {
     title.innerHTML = '<h1>Area Analysis</h1>';
     
     element.appendChild(title);
+    element.appendChild(Form.search);
     element.appendChild(formOpen);
     element.appendChild(Form.list);
     for(var i = 0; i < Form.forms.length; i++) {
@@ -276,13 +291,3 @@ Form.initialiseForms = function() {
         form.visible ? form.show() : form.hide();
     }
 };
-
-function createControl() {
-    var control = document.createElement('DIV');
-    control.className = "control";
-    control.textContent = "Click to set ZOOM...";
-    map.controls[google.maps.ControlPosition.LEFT_TOP].push(control);
-    google.maps.event.addDomListener(control, 'click', function() {
-        map.setZoom(5);
-    });
-}

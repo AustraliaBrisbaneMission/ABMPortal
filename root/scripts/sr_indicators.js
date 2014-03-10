@@ -12,14 +12,19 @@ function click(title, div) {
 }
 
 function render(data) {
+    var sortBy = {
+        field1: { displayName: "Area", reportName: "area", descending: false },
+        field2: { displayName: "Date", reportName: "date", descending: true }
+    };
     //Create indicators table
     var resultBox = document.getElementById('result_box');
     resultBox.innerHTML = "";
     var table = $.create("TABLE", { parent: resultBox });
     //Add indicator names to table header
     var header = $.create("TR", { parent: table }, [
-        $.create("TH", "Date"),
-        $.create("TH", "Missionary")
+        $.create("TH", sortBy.field1.displayName),
+        $.create("TH", sortBy.field2.displayName),
+        $.create("TH", "Reported By")
     ]);
     var indicators = data.indicators;
     $.each(indicators, function(indicator) {
@@ -29,11 +34,14 @@ function render(data) {
     var reports = {};
     function organiseReports(type) {
         $.each(data[type], function(report) {
-            var date = report.date, missionary = report.missionary;
-            if(!reports[date]) reports[date] = { length: 0 };
-            if(!reports[date][missionary]) reports[date][missionary] = {};
-            reports[date][report.missionary][type] = report;
-            reports[date].length++;
+            var field1 = report[sortBy.field1.reportName];
+            var field2 = report[sortBy.field2.reportName];
+            if(!reports[field1]) reports[field1] = { length: 0 };
+            if(!reports[field1][field2]) {
+                reports[field1][field2] = {};
+                reports[field1].length++;
+            }
+            reports[field1][field2][type] = report;
         });
     }
     organiseReports("goals");
@@ -47,17 +55,15 @@ function render(data) {
         parent: table,
         className: "actualRow"
     };
-    var lastDate;
-    $.eachSorted(reports, function(missionaryReport, date) {
-        if(date != lastDate) {
-            var row = $.create("TR", actualOptions, $.create("TD", { rowSpan: missionaryReport.length * 2, className: "date" }, date));
-            lastDate = date;
-        }
-        $.eachSorted(missionaryReport, function(report, missionary) {
-            if(missionary == "length") return;
+    $.eachSorted(reports, function(weekReport, date) {
+        var row = $.create("TR", actualOptions, $.create("TD", { rowSpan: weekReport.length * 2, className: "date" }, date));
+        $.eachSorted(weekReport, function(report, area) {
+            if(area == "length") return;
             var actualRow = row || $.create("TR", actualOptions);
             row = null;
-            $.create("TD", { parent: actualRow, rowSpan: 2, className: "missionary" }, missionary);
+            $.create("TD", { parent: actualRow, rowSpan: 2, className: "missionary" }, area);
+            var reportedBy = (report.actuals || report.goals || { reportedBy: "" }).reportedBy;
+            $.create("TD", { parent: actualRow, rowSpan: 2, className: "reportedBy" }, reportedBy);
             var actuals = report.actuals || {};
             $.each(indicators, function(indicator) {
                 $.create("TD", { parent: actualRow }, actuals[indicator._id]);
@@ -67,8 +73,8 @@ function render(data) {
             $.each(indicators, function(indicator) {
                 $.create("TD", { parent: goalRow }, goals[indicator._id]);
             });
-        });
-    }, true);
+        }, sortBy.field2.descending);
+    }, sortBy.field1.descending);
 }
 
 var deletedStandards = [];

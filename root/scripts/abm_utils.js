@@ -47,6 +47,9 @@ $.get = function(url, successHandler) {
 };
 //DOM
 Element.prototype.append = Element.prototype.appendChild;
+if(!Element.prototype.remove) Element.prototype.remove = function() {
+    this.parentNode.removeChild(this);
+};
 Element.prototype.text = function(text) { this.textContent = text; };
 Element.prototype.html = function(html) { this.innerHTML = html; };
 $.on = function(eventName, eventHandler) {

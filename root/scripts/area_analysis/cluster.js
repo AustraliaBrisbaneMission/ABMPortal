@@ -73,8 +73,10 @@ var Cluster = function(map) {
                     var max = map.positionToPixel(bounds[1]);
                     var polySize = [ max[0] - min[0], min[1] - max[1] ];
                     var labelSize = item.poly.label.real.pixelSize;
-                    if(polySize[0] < labelSize[0]) item.poly.label.hide();
-                    else item.poly.label.show();
+                    if(labelSize) {
+                        if(polySize[0] < labelSize[0]) item.poly.label.hide();
+                        else item.poly.label.show();
+                    }
                 }
             }
             for(var c = 0; c < boxes.length; c++) {

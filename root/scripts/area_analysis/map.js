@@ -169,6 +169,18 @@ var Map = function(element) {
                     raiseOnDrag: false,
                     zIndex: options.zIndex || 0
                 });
+                //Hack to stop areas being opened when dragging a point
+                function removeCover(e) { this.remove(); }
+                function stopClickEvent(e) {
+                    var cover = document.createElement("DIV");
+                    cover.style.position = "absolute";
+                    cover.style.top = cover.style.bottom = 0;
+                    cover.style.left = cover.style.right = 0;
+                    cover.style.zIndex = 99999;
+                    document.body.appendChild(cover);
+                    cover.addEventListener("mouseup", removeCover, false);
+                }
+                marker.addListener("dragstart", stopClickEvent);
                 marker.point = point;
                 point.marker = marker;
                 editPoints.push(marker);
@@ -519,18 +531,25 @@ var Map = function(element) {
         this.txt_ = params.title;
         this.cls_ = params.className || "label";
         this.map_ = params.map;
-        this.div_ = null;
         this.size = params.size || 18;
         this.setMap(params.map);
-    }
-    LabelOverlay.prototype = new google.maps.OverlayView();
-    LabelOverlay.prototype.onAdd = function() {
+        
         var div = document.createElement('DIV');
         div.className = this.cls_;
         div.innerHTML = this.txt_;
         this.div_ = div;
+    }
+    LabelOverlay.prototype = new google.maps.OverlayView();
+    LabelOverlay.prototype.onAdd = function() {
         var overlayProjection = this.getProjection();
         var position = overlayProjection.fromLatLngToDivPixel(this.pos);
+        var div = this.div_;
+        if(!div) {
+            div = document.createElement('DIV');
+            div.className = this.cls_;
+            div.innerHTML = this.txt_;
+            this.div_ = div;
+        }
         div.style.position = "absolute";
         div.style.fontSize = this.size + 'px';
         div.style.fontWeight = 'bold';
@@ -546,6 +565,7 @@ var Map = function(element) {
     };
     LabelOverlay.prototype.draw = function() {
         var overlayProjection = this.getProjection();
+        if(!overlayProjection) return;
         var position = overlayProjection.fromLatLngToDivPixel(this.pos);
         var div = this.div_;
         div.style.left = (position.x - div.offsetWidth / 2) + 'px';

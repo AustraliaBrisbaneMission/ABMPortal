@@ -1,4 +1,4 @@
-var PointPicker = function(elements, form) {
+var PointPicker = function(elements, pickedResult, searchFields, directions) {
     var me = this;
     me.setElements = function(newElements) {
         if(typeof newElements == "string") {
@@ -19,6 +19,9 @@ var PointPicker = function(elements, form) {
     me.elements = elements;
     var element = elements[0];
     
+    //Work out which properties to search
+    if(!pickedResult) pickedResult = "name";
+    
     function pick(item) {
         PointPicker.picking = me;
         element = item;
@@ -34,7 +37,7 @@ var PointPicker = function(elements, form) {
         unpick();
         for(var i = 0; i < elements.length; i++) {
             if(elements[i] == element) {
-                Directions.checkPoints();
+                if(directions) Directions.checkPoints();
                 if(i < elements.length - 1) elements[i + 1].focus();
                 else element.blur();
                 return;
@@ -76,14 +79,22 @@ var PointPicker = function(elements, form) {
         
         //Get the predicted items
         var items = [], valueLower = value.toLowerCase();
+        function check(value) {
+            if(typeof value == "string" && value.toLowerCase().indexOf(valueLower) >= 0) {
+                items.push(item);
+                return true;
+            }
+            return false;
+        }
         for(var a = 0; a < Form.forms.length; a++) {
             var form = Form.forms[a];
             for(var b = 0; b < form.items.length; b++) {
                 var item = form.items[b];
-                if(!item.position && !item.address) continue;
-                if(item.name.toLowerCase().indexOf(valueLower) >= 0) items.push(item);
-                else if(item.address && item.address.toLowerCase().indexOf(valueLower) >= 0)
-                    items.push(item);
+                if(!item[pickedResult] && (!directions || !item.position)) continue;
+                if(searchFields) for(var c = 0; c < searchFields.length; c++) {
+                    if(check(item[searchFields[c]])) break;
+                }
+                else for(var key in item) if(check(item[key])) break;
             }
         }
         
@@ -102,11 +113,13 @@ var PointPicker = function(elements, form) {
             container.appendChild(name);
             container.appendChild(type);
             var link = document.createElement('A');
-            link.href = "#" + item.name;
-            link.value = item.address || item.position;
+            link.href = "#" + item[pickedResult];
+            link.item = item;
+            link.value = item[pickedResult];
             link.addEventListener('click', function(e) {
                 e.preventDefault();
                 element.value = this.value;
+                if(element.onPick) element.onPick(this.item, this.item.form);
                 next();
             }, false);
             link.appendChild(container);

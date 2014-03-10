@@ -91,7 +91,7 @@ db.db.open(function(error, database) {
             flat: db.database.collection('flat'),
             ward: db.database.collection('ward'),
             units: db.database.collection('units'),
-            missionary: db.database.collection('missionaries')
+            missionaries: db.database.collection('missionaries')
         };
         importCollections = {
             indicators: db.database.collection('indicators'),
@@ -251,74 +251,80 @@ var Auth = {
                                     Auth.updateOrganisation(req, function(adminAccess) {
                                         //TODO: Find a way to get the missionary where it will work with two of the same name (ID maybe?)
                                         var query = { fullName: req.session.fullName };
-                                        db.missionary.findOne(query, function(error, record) {
+                                        db.missionary.findOne(query, function(error, missionary) {
                                             if(error) { console.log(error); return; }
-                                            //If they're not in the database, they're probably a senior missionary
-                                            if(!record) {
-                                                Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/", function(result) {
-                                                    if(result && result.senior) {
-                                                        function finishSenior(goals, actuals) {
-                                                                Auth.setSession(req, {
-                                                                    senior: true,
-                                                                    position: "SENIOR_COUPLE",
-                                                                    elder: elder,
-                                                                    auth: Auth.NORMAL,
-                                                                    goals: goals || {},
-                                                                    actuals: actuals || {}
-                                                                });
-                                                                done(true);
-                                                        }
-                                                        var date = new Date();
-                                                        toWeekStart(date);
-                                                        var thisWeek = formatDate(date);
-                                                        var query = {
-                                                            missionary: req.session.prefix + req.session.fullName,
-                                                            date: thisWeek
-                                                        };
-                                                        db.seniorGoals.findOne(query, function(error, goals) {
-                                                            if(error) { console.log(error); return; }
-                                                            if(!goals) {
-                                                                finishSenior();
-                                                                return;
-                                                            }
-                                                            date.setUTCDate(date.getUTCDate() - 7);
-                                                            var lastWeek = formatDate(date);
-                                                            query.date = lastWeek;
-                                                            db.seniorActuals.findOne(query, function(error, actuals) {
-                                                                if(error) { console.log(error); return; }
-                                                                finishSenior(goals, actuals);
-                                                            });
-                                                        });
+                                            Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/", function(result) {
+                                                //If they're a senior missionary
+                                                if(result && result.senior) {
+                                                    Auth.setSession(req, {
+                                                        senior: true,
+                                                        position: "SENIOR_COUPLE",
+                                                        elder: elder,
+                                                        auth: Auth.NORMAL,
+                                                        goals: {},
+                                                        actuals: {}
+                                                    });
+                                                    if(!missionary) {
+                                                        done(true);
+                                                        return;
                                                     }
-                                                    else done(false);
+                                                    //Set area information
+                                                    Auth.setSession(req, {
+                                                        zone: missionary.zone,
+                                                        district: missionary.district,
+                                                        area: missionary.area,
+                                                        unit: missionary.unit
+                                                    });
+                                                    //Get senior indicators
+                                                    var date = new Date();
+                                                    toWeekStart(date);
+                                                    var thisWeek = formatDate(date);
+                                                    var query = {
+                                                        missionary: req.session.prefix + req.session.fullName,
+                                                        date: thisWeek
+                                                    };
+                                                    db.seniorGoals.findOne(query, function(error, goals) {
+                                                        if(error) { console.log(error); return; }
+                                                        if(!goals) { done(true); return; }
+                                                        Auth.setSession(req, { goals: goals });
+                                                        date.setUTCDate(date.getUTCDate() - 7);
+                                                        var lastWeek = formatDate(date);
+                                                        query.date = lastWeek;
+                                                        db.seniorActuals.findOne(query, function(error, actuals) {
+                                                            if(error) { console.log(error); return; }
+                                                            if(actuals) Auth.setSession(req, { actuals: actuals });
+                                                            done(true);
+                                                        });
+                                                    });
+                                                    return;
+                                                }
+                                                if(!missionary) done(true);
+                                                var auth = Auth.NORMAL;
+                                                if(adminAccess || missionary.position == "SPECIAL_ASSIGNMENT") {
+                                                    auth = Auth.ADMIN;
+                                                    //Update indicators if over a day has passed since last update
+                                                    var now = new Date();
+                                                    var updateTime = new Date(Config.indicators.latestUpdate);
+                                                    updateTime.setDate(updateTime.getDate() + Config.indicators.daysUntilNextUpdate);
+                                                    if(now > updateTime) Auth.updateIndicators(req, null, null, function() {});
+                                                }
+                                                else if(missionary.position == "ASSISTANT") auth = Auth.ADMIN;
+                                                else if(missionary.position == "ZONE_LEADER_LEAD" ||
+                                                    missionary.position == "ZONE_LEADER" ||
+                                                    missionary.position == "SISTER_TRAINING_LEADER") auth = Auth.ZL;
+                                                else if(missionary.position == "DISTRICT_LEADER_TRAINER" ||
+                                                    missionary.position == "DISTRICT_LEADER") auth = Auth.DL;
+                                                Auth.setSession(req, {
+                                                    zone: missionary.zone,
+                                                    district: missionary.district,
+                                                    area: missionary.area,
+                                                    unit: missionary.unit,
+                                                    position: missionary.position,
+                                                    elder: missionary.elder,
+                                                    auth: auth
                                                 });
-                                                return;
-                                            }
-                                            var auth = Auth.NORMAL;
-                                            if(adminAccess || record.position == "SPECIAL_ASSIGNMENT") {
-                                                auth = Auth.ADMIN;
-                                                //Update indicators if over a day has passed since last update
-                                                var now = new Date();
-                                                var updateTime = new Date(Config.indicators.latestUpdate);
-                                                updateTime.setDate(updateTime.getDate() + Config.indicators.daysUntilNextUpdate);
-                                                if(now > updateTime) Auth.updateIndicators(req, null, null, function() {});
-                                            }
-                                            else if(record.position == "ASSISTANT") auth = Auth.ADMIN;
-                                            else if(record.position == "ZONE_LEADER_LEAD" ||
-                                                record.position == "ZONE_LEADER" ||
-                                                record.position == "SISTER_TRAINING_LEADER") auth = Auth.ZL;
-                                            else if(record.position == "DISTRICT_LEADER_TRAINER" ||
-                                                record.position == "DISTRICT_LEADER") auth = Auth.DL;
-                                            Auth.setSession(req, {
-                                                zone: record.zone,
-                                                district: record.district,
-                                                area: record.area,
-                                                unit: record.unit,
-                                                position: record.position,
-                                                elder: record.elder,
-                                                auth: auth
+                                                done(true);
                                             });
-                                            done(true);
                                         });
                                     });
                                     return;
@@ -843,18 +849,19 @@ server.post("/indicators/save", function(req, res) {
 });
 server.post("/indicators/submit", function(req, res) {
     if(!req.session.senior) return;
-    //Calculate dates of indicators
+    //Calculate dates area information of indicators
     var date = new Date();
     toWeekStart(date);
-    var goals = {
-        missionary: req.session.prefix + req.session.fullName,
-        date: formatDate(date)
-    };
+    var goals = {}, actuals = {};
+    goals.reportedBy = actuals.reportedBy = req.session.prefix + req.session.fullName;
+    goals.area = actuals.area = req.session.area || "";
+    goals.district = actuals.district = req.session.district || "";
+    goals.zone = actuals.zone = req.session.zone || "";
+    goals.unit = actuals.unit = req.session.unit || "";
+    goals.missionaries = actuals.missionaries = req.session.missionaries || "";
+    goals.date = formatDate(date);
     date.setDate(date.getDate() - 7);
-    var actuals = {
-        missionary: req.session.prefix + req.session.fullName,
-        date: formatDate(date)
-    };
+    actuals.date = formatDate(date);
     //Get actuals and goals submitted
     var actualPrefix = "lastWeekActual_", goalPrefix = "thisWeekGoal_";
     for(var key in req.body) {
@@ -867,11 +874,11 @@ server.post("/indicators/submit", function(req, res) {
             goals[id] = req.session.goals[id] = req.body[key];
         }
     }
-    //Insert into indicators into database
-    var query = { date: actuals.date, missionary: actuals.missionary };
+    //Insert indicators into database
+    var query = { date: actuals.date, area: actuals.area };
     db.seniorActuals.update(query, actuals, { upsert: true }, function(error, result) {
         if(error) { console.log(error); res.send(500); return; }
-        var query = { date: goals.date, missionary: goals.missionary };
+        var query = { date: goals.date, area: goals.area };
         db.seniorGoals.update(query, goals, { upsert: true }, function(error, result) {
             if(error) { console.log(error); res.send(500); return; }
             req.session.temp.indicatorSuccess = true;
@@ -1445,6 +1452,12 @@ function sortByMonth(data) {
         data[i][0] = months[parseInt(dates[1])] + "-" + dates[0];
     }
 }
+function checkForMissionary(missionaries, missionary) {
+    for(var i = 0; i < missionaries.length; i++) {
+        if(missionaries[i] == missionary) return true;
+    }
+    return false;
+}
 server.get('/import/indicators.csv', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     var line = [], data = [], headings = [
@@ -1521,7 +1534,11 @@ server.get('/import/indicators.csv', function (req, res) {
             var value = doc[key];
             if(key == "missionaries") {
                 var missionaries = [];
-                for(var i in value) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
+                if(req.query.missionary && !checkForMissionary(value, req.query.missionary)) return;
+                for(var i in value) {
+                    if(req.query.fullName) missionaries.push(value[i]);
+                    else missionaries.push(value[i].substring(0, value[i].indexOf(',')));
+                }
                 line[indexes.missionaries] = missionaries.join(" / ");
             }
             else if(key == "ward") line[indexes["ward"]] = wardAlias[value] || value;
@@ -1873,6 +1890,47 @@ function updateChapels() {
 }
 
 var areaAnalysisCollections = null;
+server.post("/maps/splits/reset", function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    //Non-admin users cannot edit other unit's area boundaries
+    if(req.session.auth < Auth.ADMIN && req.body.unit != req.session.unit) {
+        res.send(500);
+        return;
+    }
+    //Remove area boundaries belonging to the unit
+    var query = { unit: req.body.unit };
+    var update = { $set: { boundaries: [] } };
+    db.area.update(query, update, { multi: true }, function(err, result) {
+        if(err) { console.log(err); res.send(500, err); return; }
+        //Reset the unit's shared boundaries
+        var query = { name: req.body.unit };
+        var update = { $set: { sharedBoundaries: null } };
+        db.units.update(query, update, function(err, result) {
+            if(err) { console.log(err); res.send(500, err); }
+            else res.send();
+        });
+    });
+});
+server.post("/maps/splits/add", function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    //Non-admin users cannot edit other unit's area boundaries
+    if(req.session.auth < Auth.ADMIN && req.body.unit != req.session.unit) {
+        res.send(500);
+        return;
+    }
+    //Update area boundaries
+    var query = { name: req.body.area };
+    var update = { $set: { boundaries: req.body.boundaries } };
+    db.area.update(query, update, function(err, result) {
+        if(err) { console.log(err); res.send(500, err); return; }
+        var query = { name: req.body.unit };
+        var update = { $set: { sharedBoundaries: req.body.sharedBoundaries } };
+        db.units.update(query, update, function(err, result) {
+            if(err) { console.log(err); res.send(500, err); }
+            else res.send();
+        });
+    });
+});
 server.post('/maps/units', function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN, true)) return;
     db.units.remove(function(error, result) {

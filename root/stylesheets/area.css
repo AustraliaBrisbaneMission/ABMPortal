@@ -200,11 +200,24 @@ body {
   padding-bottom: 4px;
   text-align: center;
 }
+#form #form_search input {
+  width: 246px;
+}
 #form #form_open {
   border: 1px solid #ccc;
   height: 200px;
   padding: 4px;
   overflow: auto;
+}
+#form #form_open .splitContainer div {
+  margin: 8px 0;
+}
+#form #form_open .splitContainer p {
+  margin: 4px 0;
+}
+#form #form_open .splitContainer h2 {
+  font-size: 16px;
+  font-weight: bold;
 }
 #form #form_open .item {
   font-size: 1.1em;

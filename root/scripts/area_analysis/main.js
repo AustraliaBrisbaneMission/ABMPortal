@@ -31,7 +31,7 @@ var areaSettings = {
 zip.workerScriptsPath = "/scripts/";
 
 //Forms
-var Chapels, Flats, Areas, Units, Directions, AreaSplits;
+var Chapels, Flats, Areas, Units, Directions, AreaSplits, Missionaries;
 
 //Function to easily make linked lists in forms
 function openListLink(e) {
@@ -50,6 +50,22 @@ function listifyLinks(form, items) {
         links.push($.create("DIV", link));
     }
     return $.create("DIV", links);
+}
+function renderLinks(formName) {
+    return function(items) {
+        if(!items) return;
+        if(items instanceof Array) {
+            var newItems = [];
+            for(var i = 0; i < items.length; i++) {
+                var item = items[i];
+                newItems[i] = (typeof item == "string") ? item : item.name;
+            }
+            items = newItems;
+        }
+        else if(typeof items == "string") items = [ items ];
+        else items = [ items.name ];
+        return listifyLinks(window[formName], items);
+    };
 }
 
 function getChapelPath(show, callback) {
@@ -281,7 +297,7 @@ function initialise() {
         onOpen: function() {
             Directions.points = [];
             var directionsForm = document.createElement('FORM');
-            Directions.picker = new PointPicker(Directions.points, directionsForm);
+            Directions.picker = new PointPicker(Directions.points, "address", null, true);
             Directions.directionsForm = directionsForm;
             directionsForm.id = "directionsForm";
             var directionsContainer = document.createElement('DIV');
@@ -380,11 +396,9 @@ function initialise() {
         }
     });
     
-    UnitLabels = new Form({ name: "Display Unit Labels:", show: false, noDb: true });
     Units = new Form({
         name: "units",
         displayName: "Units",
-        show: false,
         fields: {
             name: {
                 displayName: "Name",
@@ -462,9 +476,9 @@ function initialise() {
                 ward.poly = new map.Polygon({
                     show: Units.visible,
                     paths: ward.boundaries,
-                    strokeColor: ward.name == User.unit ? "#F33" : "#333",
+                    strokeColor: "#333",
                     strokeOpacity: 0.5,
-                    strokeWeight: ward.name == User.unit ? 4 : 2,
+                    strokeWeight: 2,
                     fillColor: colour,
                     fillOpacity: 0.1,
                     zIndex: 1,
@@ -472,6 +486,7 @@ function initialise() {
                     pan: ward.name == User.unit
                 });
                 Units.mapElements.push(ward.poly);
+                /*
                 ward.label = new map.Label({
                     show: UnitLabels.visible, //Showing labels adds lag
                     title: ward.name,
@@ -479,6 +494,7 @@ function initialise() {
                     position: calculateCentroid(ward.boundaries)
                 });
                 UnitLabels.mapElements.push(ward.label);
+                */
             }
             Areas.findUnits();
             Units.findChapels();
@@ -578,7 +594,7 @@ function initialise() {
             address: { displayName: "Address" },
             areas: {
                 displayName: "Areas",
-                render: function(areas) { return areas ? areas.join(" / ") : ""; }
+                render: renderLinks("Areas")
             },
             id: { displayName: "IMOS Housing ID" },
             position: {
@@ -591,13 +607,14 @@ function initialise() {
                 }
             }
         },
-        labels: true,
+        //labels: true,
         onOpen: function(itemIndex) {
+            if(!Flats.currentItem.marker) return;
             Flats.currentItem.marker.setOptions({ icon: icons.flatHighlight });
             map.pan(Flats.currentItem.marker.getPosition());
         },
         onClose: function() {
-            if(Flats.currentItem) {
+            if(Flats.currentItem && Flats.currentItem.marker) {
                 Flats.currentItem.marker.setOptions({ icon: icons.flat });
             }
             Flats.marker.show(false);
@@ -611,8 +628,8 @@ function initialise() {
                 flat.marker = new map.Marker({
                     show: true,
                     position: result ? result.position : flat.position,
-                    icon: icons.flat,
-                    label: flat.name + " Flat"
+                    icon: icons.flat
+                    //label: flat.name + " Flat"
                 });
                 Flats.mapElements.push(flat.marker);
                 PointPicker.addClick(flat.marker, flat.address);
@@ -697,7 +714,7 @@ function initialise() {
                     $.post("/maps/db", data, function(result) {
                         Flats.items = [];
                         Flats.initialise();
-                        status.textContent = "Flats uploaded successfully!";
+                        document.getElementById("flatsStatus").textContent = "Flats uploaded successfully!";
                         input.disabled = false;
                     });
                 });
@@ -767,6 +784,17 @@ function initialise() {
         name: "area",
         displayName: "Areas",
         fields: {
+            changeBoundaries: {
+                noDisplay: User.auth < Auth.ADMIN,
+                displayName: "Change Area Boundaries",
+                render: function() {
+                    var a = document.createElement("A");
+                    a.href = "#Change Area Boundaires";
+                    a.textContent = "Click to add boundaries...";
+                    a.addEventListener("click", Areas.changeBoundaries, false);
+                    return a;
+                }
+            },
             name: { displayName: "Name" },
             district: { displayName: "District" },
             zone: { displayName: "Zone" },
@@ -776,27 +804,18 @@ function initialise() {
             },
             missionaries: {
                 displayName: "Missionaries",
-                render: function(missionaries) {
-                    if(!missionaries || !missionaries.length) return "";
-                    var list = [];
-                    for(var i = 0; i < missionaries.length; i++) {
-                        var missionary = missionaries[i];
-                        var prefix = missionary.elder ? "Elder " : "Sister ";
-                        list.push(prefix + missionary.lastName);
-                    }
-                    return list.join(" / ");
-                }
+                render: renderLinks("Missionaries")
             },
             flat: {
                 displayName: "Flat",
-                render: function(flat) { return flat.name; }
+                render: renderLinks("Flats")
             },
             chapel: {
                 displayName: "Chapel",
                 render: function() {
                     var unit = Areas.currentItem.unit;
                     if(!unit) return;
-                    return unit.chapel ? unit.chapel.address : "";
+                    return listifyLinks(Chapels, [ unit.chapel.name ]);
                 }
             },
             boundaries: { noDisplay: true },
@@ -819,16 +838,6 @@ function initialise() {
                 render: function(distance) {
                     return parseFloat(distance).toFixed(2) + "km";
                 }
-            },
-            changeBoundaries: {
-                displayName: "Change Area Boundaries",
-                render: function() {
-                    var a = document.createElement("A");
-                    a.href = "#Change Area Boundaires";
-                    a.textContent = "Click to add boundaries...";
-                    a.addEventListener("click", Areas.changeBoundaries, false);
-                    return a;
-                }
             }
         },
         onOpen: function(itemIndex) {
@@ -846,6 +855,11 @@ function initialise() {
                 });
                 Areas.currentItem.poly.pan();
             }
+            //Highlight the area's flat and chapel
+            if(Areas.currentItem.flat && Areas.currentItem.flat.marker) {
+                Areas.currentItem.flat.marker.setOptions({ icon: icons.flatHighlight });
+            }
+            Areas.currentItem.unit.chapel.marker.setOptions({ icon: icons.chapelHighlight });
         },
         onClose: function() {
             if(Areas.currentItem) {
@@ -862,6 +876,10 @@ function initialise() {
                     Areas.splitting = false;
                 }
             }
+            if(Areas.currentItem.flat && Areas.currentItem.flat.marker) {
+                Areas.currentItem.flat.marker.setOptions({ icon: icons.flat });
+            }
+            Areas.currentItem.unit.chapel.marker.setOptions({ icon: icons.chapel });
         },
         onAllClose: function() {
             if(areaPoly) removeAreaPoly();
@@ -882,7 +900,7 @@ function initialise() {
                 check("zone", "");
                 check("unit", "");
                 check("flat", "");
-                check("missionaries", "");
+                check("missionaries", []);
                 check("boundaries", []);
                 check("areaSharedWith", []);
                 check("size", 0);
@@ -890,6 +908,12 @@ function initialise() {
                 check("centroidDistance", 0);
                 check("chapelPath", []);
                 check("chapelDistance", 0);
+                for(var a = 0; a < area.missionaries.length; a++) {
+                    var missionary = area.missionaries[a];
+                    var prefix = missionary.elder ? "Elder " : "Sister ";
+                    missionary.name = prefix + missionary.firstName + " " + missionary.lastName;
+                    missionary.displayName = prefix + missionary.lastName;
+                }
             }
             Areas.findUnits();
             Areas.findFlats();
@@ -901,50 +925,16 @@ function initialise() {
             chapelPath: [],
             chapelPathPoly: null,
             flat: null,
+            chapel: null,
+            areaClick: function(e) { Areas.open(this.areas[0]); },
             findUnits: function() {
                 function areaClick(e) { Areas.open(this.areas[0]); }
                 var areas = Areas.items, units = Units.items;
                 if(!areas.length || !units.length) return;
                 for(var a = 0; a < areas.length; a++) {
                     var area = areas[a];
-                    var unit = area.unit = getItemBy(units, "name", area.unit);
-                    if(unit && !area.boundaries.length) {
-                        area.missingBoundaries = true;
-                        if(unit.sharedPoly) {
-                            area.poly = unit.sharedPoly;
-                            area.poly.areas.push(area.name);
-                            area.poly.label.setTitle(area.poly.areas.join(" / "));
-                            continue;
-                        }
-                        else area.boundaries = map.clonePath(unit.boundaries);
-                    }
-                    else if(!area.boundaries.length) continue;
-                    
-                    //Draw area boundaries on map
-                    area.points = [];
-                    for(var i = 0; i < area.boundaries.length; i++) {
-                        area.points.push(area.boundaries[i]);
-                    }
-                    area.poly = new map.Polygon({
-                        show: Areas.visible,
-                        paths: area.points,
-                        strokeColor: '#FF6666',
-                        strokeOpacity: 0.8,
-                        strokeWeight: 2,
-                        fillColor: areaSettings.fillColor,
-                        fillOpacity: areaSettings.fillOpacity,
-                        clickable: true
-                    });
-                    if(area.missingBoundaries) unit.sharedPoly = area.poly;
-                    Areas.mapElements.push(area.poly);
-                    area.poly.on("click", areaClick);
-                    area.poly.areas = [ area.name ];
-                    area.poly.label = new map.Label({
-                        show: Areas.visible,
-                        position: calculateCentroid(area.points),
-                        title: area.name
-                    });
-                    Areas.mapElements.push(area.poly.label);
+                    area.unit = getItemBy(units, "name", area.unit);
+                    Areas.createAreaPoly(area);
                 }
                 Areas.calculateMissingFields();
             },
@@ -999,9 +989,9 @@ function initialise() {
                 }
             },
             chapelDistanceCallback: function(result) {
-                var path = result[0].path;
+                var path = result[0].path, distance = 0;
                 Areas.chapelPathPoly = new map.Polyline({
-                    show: show,
+                    show: true,
                     path: path
                 });
                 for(var i = 1, pathLength = path.length; i < pathLength; i++) {
@@ -1022,20 +1012,47 @@ function initialise() {
                 strokeWeight: 4,
                 clickable: false
             }),
-            areaPoly: new map.Polygon({
-                show: false,
-                strokeColor: '#FF6666',
-                strokeOpacity: 0.8,
-                strokeWeight: 2,
-                fillColor: areaSettings.fillColor,
-                fillOpacity: areaSettings.fillOpacity,
-                clickable: false
-            }),
-            areaLabel: new map.Label({
-                show: true,
-                position: [ 0, 0 ],
-                title: "Area"
-            })
+            createAreaPoly: function(area) {
+                if(!area.boundaries.length) {
+                    if(!area.unit) return;
+                    area.missingBoundaries = true;
+                    if(area.unit.sharedPoly) {
+                        area.poly = area.unit.sharedPoly;
+                        area.poly.areas.push(area.name);
+                        area.poly.label.setTitle(area.poly.areas.join(" / "));
+                        return;
+                    }
+                    if(area.unit.sharedBoundaries && area.unit.sharedBoundaries.length) {
+                        area.boundaries = map.clonePath(area.unit.sharedBoundaries);
+                    }
+                    else area.boundaries = map.clonePath(area.unit.boundaries);
+                }
+                area.points = [];
+                for(var i = 0; i < area.boundaries.length; i++) {
+                    area.points.push(area.boundaries[i]);
+                }
+                area.poly = new map.Polygon({
+                    show: Areas.visible,
+                    paths: area.points,
+                    strokeColor: area.name == User.area ? "#F33" : '#f66',
+                    strokeOpacity: 0.8,
+                    strokeWeight: area.name == User.area ? 4 : 2,
+                    fillColor: areaSettings.fillColor,
+                    fillOpacity: areaSettings.fillOpacity,
+                    clickable: true
+                });
+                if(area.missingBoundaries) area.unit.sharedPoly = area.poly;
+                Areas.mapElements.push(area.poly);
+                area.poly.on("click", Areas.areaClick);
+                area.poly.areas = [ area.name ];
+                area.poly.label = new map.Label({
+                    show: Areas.visible,
+                    position: calculateCentroid(area.points),
+                    title: area.name
+                });
+                Areas.mapElements.push(area.poly.label);
+            },
+            areaPoly: null
         }
     });
     
@@ -1046,33 +1063,140 @@ function initialise() {
         noDb: true,
         onOpen: function() {
             var area = AreaSplits.area;
-            var unit = area.unit;
-            Form.currentForm.textContent = area.name;
+            
+            //Hide the original area shapes
+            area.poly.hide();
+            var mapElements = Areas.mapElements, label = area.poly.label;
+            for(var i = 0, length = mapElements.length; i < length; i++) {
+                if(mapElements[i] == label) mapElements.splice(i, 1);
+            }
+            area.poly.label.hide();
+            Form.currentForm.innerHTML = "";
+            var container, a, h2, p;
+            
+            //Area splitting instructions
+            var splitContainer = document.createElement("DIV");
+            splitContainer.className = "splitContainer";
+            container = document.createElement("DIV");
+            a = document.createElement("A");
+            a.href = "#Open/Close Instructions";
+            h2 = document.createElement("H2");
+            h2.innerText = "Area Splitting Instructions";
+            a.appendChild(h2);
+            container.appendChild(a);
+            var instructions = document.createElement("DIV");
+            p = document.createElement("P");
+            p.innerText = [
+                "Edit the green line on the map to alter the boundary between",
+                "the two areas. If you need to start again, click cancel then",
+                "start splitting the boundaries again. Every time the area",
+                "boundaries are changed or a new area is created, you must",
+                "update the boundaries on this website."
+            ].join(" ");
+            instructions.appendChild(p);
+            p = document.createElement("P");
+            p.innerText = [
+                "You can edit the boundaries of any area in your ward/branch.",
+                "To change the existing boundaries, you must open an area,",
+                "start splitting the boundaries, then click 'Reset Unit",
+                "Boundaries'. This will remove all split lines from the unit.",
+                "After this, you must enter the new split lines of each area"
+            ].join(" ");
+            instructions.appendChild(p);
+            p = document.createElement("P");
+            p.innerText = [
+                "Areas with no defined boundaries or boundaries that overlap",
+                "other areas (EMP, River Terrace, etc.) do not need to be",
+                "split and can be left where they are."
+            ].join(" ");
+            instructions.appendChild(p);
+            a.addEventListener("click", function(e) {
+                e.preventDefault();
+                instructions.visible = !instructions.visible;
+                instructions.style.display = instructions.visible ? "" : "none";
+            }, false);
+            instructions.visible = false;
+            instructions.style.display = "none";
+            container.appendChild(instructions);
+            splitContainer.appendChild(container);
+            
+            //Save
+            container = document.createElement("DIV");
+            a = document.createElement("A");
+            a.href = "#Save Area Boundary";
+            a.textContent = "Save Area Boundary";
+            a.addEventListener("click", AreaSplits.save);
+            container.appendChild(a);
+            splitContainer.appendChild(container);
+            
+            //Reset ward splits
+            container = document.createElement("DIV");
+            a = document.createElement("A");
+            a.href = "#Reset Unit Area Boundaries";
+            a.textContent = "Reset Unit Area Boundaries";
+            a.addEventListener("click", AreaSplits.resetSplits);
+            container.appendChild(a);
+            splitContainer.appendChild(container);
+            
+            //Cancel
+            container = document.createElement("DIV");
+            a = document.createElement("A");
+            a.href = "#Cancel Splitting Area";
+            a.textContent = "Cancel Splitting Area";
+            a.addEventListener("click", function(e) {
+                e.preventDefault();
+                Areas.open(AreaSplits.area);
+            });
+            container.appendChild(a);
+            splitContainer.appendChild(container);
+            Form.currentForm.appendChild(splitContainer);
+            
+            //Create polygons used to split area
+            AreaSplits.areaPoly = new map.Polygon({
+                show: true,
+                strokeColor: '#FF6666',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: areaSettings.fillColor,
+                fillOpacity: areaSettings.fillOpacity,
+                clickable: true
+            });
+            AreaSplits.sharedPoly = new map.Polygon({
+                show: true,
+                strokeColor: "#FF6666",
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: areaSettings.fillColor,
+                fillOpacity: areaSettings.fillOpacity,
+                clickable: true
+            });
+            
+            AreaSplits.areaPoly.label = new map.Label({ title: area.name });
+            AreaSplits.sharedPoly.label = new map.Label({});
+            AreaSplits.addSplit();
+        },
+        onClose: function() {
+            //Hide splitting tools
+            if(AreaSplits.sharedPoly) {
+                AreaSplits.sharedPoly.label.hide();
+                AreaSplits.sharedPoly.hide();
+            }
+            if(AreaSplits.areaPoly) {
+                AreaSplits.areaPoly.label.hide();
+                AreaSplits.areaPoly.hide();
+                //Show original area objects
+                AreaSplits.area.poly.show();
+                AreaSplits.area.poly.label.show();
+            }
+            AreaSplits.line.hide();
         },
         variables: {
             area: null,
             line: null,
             wardPath: null,
-            areaPoly: new map.Polygon({
-                show: false,
-                strokeColor: "#6666FF",
-                strokeOpacity: 0.8,
-                strokeWeight: 2,
-                fillColor: areaSettings.fillColor,
-                fillOpacity: areaSettings.fillOpacity,
-                clickable: false
-            }),
-            areaLabel: new map.Label({}),
-            sharedPoly: new map.Polygon({
-                show: false,
-                strokeColor: "#FF6666",
-                strokeOpacity: 0.8,
-                strokeWeight: 2,
-                fillColor: "#FF6666",
-                fillOpacity: areaSettings.fillOpacity,
-                clickable: false
-            }),
-            sharedLabel: new map.Label({}),
+            areaPoly: null,
+            sharedPoly: null,
+            sharedPath: [],
             splitArea: function(area) {
                 AreaSplits.area = area;
                 AreaSplits.open();
@@ -1099,21 +1223,24 @@ function initialise() {
                     zIndex: 100
                 });
                 //Update area labels
-                Areas.areaPoly.hide();
-                Areas.areaLabel.hide();
-                var sharedNames = [], shared = area.poly.shared;
-                for(var i = 0; i < shared.length; i++) {
-                    if(shared != area) sharedNames.push(shared.name);
+                //Areas.areaPoly.hide();
+                var sharedNames = [], areas = area.poly.areas;
+                for(var i = 0; i < areas.length; i++) {
+                    if(areas[i] != area.name) sharedNames.push(areas[i]);
                 }
-                AreaSplits.sharedLabel.setOptions({ title: sharedNames.join(" / ") });
-                AreaSplits.areaLabel.setOptions({ title: AreaSplits.area.name });
+                AreaSplits.sharedPoly.areas = sharedNames;
+                AreaSplits.sharedPoly.label.setOptions({ title: sharedNames.join(" / ") });
+                AreaSplits.sharedPoly.label.show();
+                AreaSplits.areaPoly.areas = [ area.name ];
+                AreaSplits.areaPoly.label.setOptions({ title: AreaSplits.area.name });
+                AreaSplits.areaPoly.label.show();
                 AreaSplits.calculateAreaBoundaries();
             },
             calculateAreaBoundaries: function() {
                 function same(pointA, pointB) {
                     return pointA[0] == pointB[0] && pointA[1] == pointB[1];
                 }
-                var path = [], sharedPath = [];
+                var path = [], sharedPath = AreaSplits.sharedPath = [];
                 var linePath = AreaSplits.line.getPath();
                 var wardPath = AreaSplits.wardPath;
                 var wardPathLength = wardPath.length;
@@ -1130,7 +1257,7 @@ function initialise() {
                     path.push(wardPath[index]);
                 }
                 AreaSplits.areaPoly.setOptions({ paths: path });
-                AreaSplits.areaLabel.setPosition(calculateCentroid(path));
+                AreaSplits.areaPoly.label.setPosition(calculateCentroid(path));
                 //Update the old shared boundary
                 var wardPathStart = index;
                 for(var i = linePathLength; i--;) sharedPath.push(linePath[i]);
@@ -1139,8 +1266,106 @@ function initialise() {
                     sharedPath.push(wardPath[index]);
                 }
                 AreaSplits.sharedPoly.setOptions({ paths: sharedPath });
-                AreaSplits.sharedLabel.setPosition(calculateCentroid(sharedPath));
+                AreaSplits.sharedPoly.label.setPosition(calculateCentroid(sharedPath));
+            },
+            save: function(e) {
+                e.preventDefault();
+                AreaSplits.areaPoly.on("click", Areas.areaClick);
+                AreaSplits.sharedPoly.on("click", Areas.areaClick);
+                
+                //Give the new area polygon the properties of the old one
+                var area = Areas.currentItem;
+                area.poly = AreaSplits.areaPoly;
+                area.missingBoundaries = false;
+                area.boundaries = area.points = area.poly.getPath();
+                
+                //Add the area labels to the list of map elements
+                Areas.mapElements.push(AreaSplits.areaPoly.label);
+                Areas.mapElements.push(AreaSplits.sharedPoly.label);
+                
+                //Assign the left over areas to the shared polygon
+                var areas = AreaSplits.sharedPoly.areas;
+                for(var i = 0; i < areas.length; i++) {
+                    var item = getItemBy(Areas.items, "name", areas[i]);
+                    if(item) item.poly = AreaSplits.sharedPoly;
+                }
+                area.unit.sharedPoly = AreaSplits.sharedPoly;
+                //Prevent the onClose function from hiding the shared polygon
+                AreaSplits.sharedPoly = AreaSplits.areaPoly = null;
+                
+                $.post("/maps/splits/add", {
+                    area: area.name,
+                    boundaries: area.boundaries,
+                    unit: area.unit.name,
+                    sharedBoundaries: AreaSplits.sharedPath
+                });
+                
+                Areas.open(AreaSplits.area);
+            },
+            resetSplits: function(e) {
+                e.preventDefault();
+                //Confirm before resetting
+                var unit = Areas.currentItem.unit;
+                var message = "Are you sure you want to reset all area " +
+                    "boundaries for " + unit.name + " " +
+                    (unit.branch ? "Branch" : "Ward") + "?";
+                if(!confirm(message)) return;
+                //Remove the current shared polygon
+                unit.sharedPoly.hide();
+                unit.sharedPoly = unit.sharedBoundaries = null;
+                //Remove then recreate each area's boundaries and polygons
+                var mapElements = Areas.mapElements;
+                var areas = getItemsBy(Areas.items, "unit", unit);
+                for(var i = 0; i < areas.length; i++) {
+                    var area = areas[i];
+                    if(area.poly) {
+                        //Remove area boundary and label from map
+                        area.poly.hide();
+                        var label = area.poly.label;
+                        for(var a = 0, length = mapElements.length; a < length; a++) {
+                            if(mapElements[a] == label) {
+                                mapElements.splice(a, 1);
+                                break;
+                            }
+                        }
+                        label.hide();
+                    }
+                    area.boundaries = [];
+                    Areas.createAreaPoly(area);
+                }
+                $.post("/maps/splits/reset", { unit: unit.name });
+                Areas.open(AreaSplits.area);
             }
+        }
+    });
+    
+    Missionaries = new Form({
+        name: "missionaries",
+        displayName: "Missionaries",
+        fields: {
+            name: { displayName: "Name" },
+            area: {
+                displayName: "Area",
+                render: renderLinks("Areas")
+            },
+            district: { displayName: "District" },
+            zone: { displayName: "Zone" }
+        },
+        onInitialise: function(missionaries) {
+            //Assign display names to the missionaries
+            for(var i = 0, length = missionaries.length; i < length; i++) {
+                var missionary = missionaries[i];
+                var prefix = missionary.elder ? "Elder " : "Sister ";
+                missionary.name = prefix + missionary.fullName;
+                missionary.displayName = prefix + missionary.lastName;
+            }
+            //Sort missionaries by last name
+            missionaries.sort(function(a, b) {
+                if(a.lastName > b.lastName) return 1;
+                if(a.lastName < b.lastName) return -1;
+                return 0;
+            });
+            return missionaries;
         }
     });
     
@@ -1148,8 +1373,45 @@ function initialise() {
     cluster = new Cluster(map);
     
     //Settings menu
+    var menu = document.getElementById("settingsMenu");
+    //Open menu button
+    document.getElementById("settings").addEventListener("click", function(e) {
+        e.preventDefault();
+        menu.visible = !menu.visible;
+        menu.style.display = menu.visible ? "" : "none";
+    }, false);
+    function settingBoxClicked(e) {
+        
+    }
+    function addSettingTitle(text) {
+        var title = document.createElement("H2");
+        title.textContent = text;
+        menu.appendChild(title);
+    }
+    function addSetting(name, description, defaultChecked) {
+        var container = document.createElement("DIV");
+        var checkbox = document.createElement("INPUT");
+        checkbox.type = "checkbox";
+        checkbox.id = name + "_settingbox";
+        checkbox.settingName = name;
+        checkbox.addEventListener("click", settingBoxClicked, false);
+        checkbox.checked = defaultChecked;
+        container.appendChild(checkbox);
+        var label = document.createElement("LABEL");
+        label.setAttribute("for", name + "_settingbox");
+        label.textContent = description;
+        container.appendChild(label);
+        menu.appendChild(container);
+    }
+    addSettingTitle("Visibility");
+    addSetting("areaVisible", "Show areas", true);
+    addSetting("flatVisible", "Show flats", true);
+    addSetting("chapelVisible", "Show chapels", true);
+    addSettingTitle("Labels");
+    addSetting("areaLabels", "Show area labels", true);
+    addSetting("flatLabels", "Show flat labels", false);
+    addSetting("chapelLabels", "Show chapel labels", false);
     if(User.auth >= Auth.ADMIN) {
-        var menu = document.getElementById("settingsMenu");
         var help = document.createElement("SPAN");
         help.className = "helpMessage";
         help.textContent = "IMPORTANT: For instructions on how to upload " +
@@ -1244,12 +1506,6 @@ function initialise() {
             reader.readAsText(file);
         }, false);
         menu.appendChild(input);
-        //Open menu button
-        document.getElementById("settings").addEventListener("click", function(e) {
-            e.preventDefault();
-            menu.visible = !menu.visible;
-            menu.style.display = menu.visible ? "" : "none";
-        }, false);
     }
 }
 window.addEventListener('load', initialise, false);
