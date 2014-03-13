@@ -5,6 +5,9 @@ var Map = function(element) {
     me.pan = function(position) {
         map.panTo(convertPosition(position));
     };
+    me.zoom = function(zoomLevel) {
+        map.setZoom(zoomLevel);
+    };
     
     //Creates map objects
     function createMapObject(obj, type, options) {
@@ -64,6 +67,9 @@ var Map = function(element) {
                     var label = new me.Label(labelOptions);
                     if(options.icon) label.real.marginTop = "12px";
                     mapObjects.push(label.real);
+                }
+                else if(i == "pan") {
+                    if(options.position) me.pan(options.position);
                 }
             }
             return newOptions;
@@ -309,6 +315,10 @@ var Map = function(element) {
             map.panToBounds(bounds);
         };
         if(options.pan) this.pan();
+        this.pointIsInside = function(point) {
+            var position = convertPosition(point);
+            return google.maps.geometry.poly.containsLocation(position, this.real);
+        };
     };
     me.Polyline = function(options) { createMapObject(this, google.maps.Polyline, options); };
     me.Label = function(options) { createMapObject(this, LabelOverlay, options); };
@@ -343,7 +353,8 @@ var Map = function(element) {
         geocoder.geocode( { address: address }, function(results, status) {
             if(status == google.maps.GeocoderStatus.OK) {
                 var result = {
-                    position: convertFromPosition(results[0].geometry.location)
+                    position: convertFromPosition(results[0].geometry.location),
+                    address: results[0].formatted_address
                 };
                 successCallback(result);
             }

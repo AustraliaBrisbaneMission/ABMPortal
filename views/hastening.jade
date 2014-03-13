@@ -98,12 +98,13 @@ block content
             td #{unit}
             td
               input(type="text" name="unit" + i + "_dateReviewed")
+            - var unitRecord = lastReport ? lastReport.units[i - 1] || {} : {};
             - for(var month = 1; month <= 12; month++)
               td
-                input(type="text" name="unit" + i + "_month" + month value=lastReport ? lastReport.units[i - 1]["month" + month] : "")
+                input(type="text" name="unit" + i + "_month" + month value=unitRecord["month" + month] || "")
             td(id="unit" + i + "_ytd")
             td
-              input(type="text" name="unit" + i + "_goal" value=lastReport ? lastReport.units[i - 1].goal : "")
+              input(type="text" name="unit" + i + "_goal" value=unitRecord.goal || "")
             td(id="unit" + i + "_remaining")
         tr(class="totals")
           td(colspan=2) Total

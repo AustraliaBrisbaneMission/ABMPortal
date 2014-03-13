@@ -31,7 +31,7 @@ var areaSettings = {
 zip.workerScriptsPath = "/scripts/";
 
 //Forms
-var Chapels, Flats, Areas, Units, Directions, AreaSplits, Missionaries;
+var Chapels, Flats, Areas, Units, Directions, AreaSplits, Missionaries, AddressSearch;
 
 //Function to easily make linked lists in forms
 function openListLink(e) {
@@ -290,6 +290,79 @@ function initialise() {
         clickable: false
     });
     
+    AddressSearch = new Form({
+        name: "Search for Address...",
+        noDisplay: true,
+        onOpen: function() {
+            if(AddressSearch.marker) AddressSearch.marker.hide();
+            AddressSearch.resetColor();
+            var address = document.getElementById("search").value;
+            map.geocode(address + ", QLD", function(result) {
+                if(result && result.position) {
+                    AddressSearch.marker = new map.Marker({
+                        show: true,
+                        position: result.position,
+                        pan: true
+                    });
+                    map.zoom(13);
+                    Form.currentForm.innerHTML = "";
+                    var div = document.createElement("DIV");
+                    AddressSearch.area = null;
+                    var areas = Areas.items;
+                    for(var i = 0, length = areas.length; i < length; i++) {
+                        var poly = areas[i].poly;
+                        if(poly && poly.pointIsInside(result.position)) {
+                            AddressSearch.area = areas[i];
+                            poly.setOptions({
+                                fillColor: "#66f",
+                                strokeColor: "#66f"
+                            });
+                            break;
+                        }
+                    }
+                    if(!AddressSearch.area) div.textContent = "Area: [NONE]";
+                    else {
+                        div.textContent = "Area: ";
+                        var a = document.createElement("A");
+                        a.href = "#Open Area";
+                        a.textContent = AddressSearch.area.name;
+                        a.addEventListener("click", function(e) {
+                            e.preventDefault();
+                            Areas.open(AddressSearch.area);
+                        }, false);
+                        div.appendChild(a);
+                    }
+                    Form.currentForm.appendChild(div);
+                    div = document.createElement("DIV");
+                    div.textContent = "Searched for '" + address + "'.";
+                    Form.currentForm.appendChild(div);
+                    div = document.createElement("DIV");
+                    div.textContent = "Found '" + result.address + "'...";
+                    Form.currentForm.appendChild(div);
+                }
+                else Form.currentForm.textContent = "No results found for '" +
+                    address + "'!";
+            });
+            Form.currentForm.textContent = "Searching for '" + address + "'...";
+        },
+        onClose: function() {
+            AddressSearch.marker.hide();
+            AddressSearch.resetColor();
+        },
+        variables: {
+            marker: null,
+            area: null,
+            resetColor: function() {
+                if(AddressSearch.area && AddressSearch.area.poly) {
+                    AddressSearch.area.poly.setOptions({
+                        fillColor: areaSettings.fillColor,
+                        strokeColor: areaSettings.fillColor
+                    });
+                }
+            }
+        }
+    });
+    
     Directions = new Form({
         name: "Directions",
         noDb: true,
@@ -482,8 +555,7 @@ function initialise() {
                     fillColor: colour,
                     fillOpacity: 0.1,
                     zIndex: 1,
-                    clickable: false,
-                    pan: ward.name == User.unit
+                    clickable: false
                 });
                 Units.mapElements.push(ward.poly);
                 /*
@@ -935,6 +1007,7 @@ function initialise() {
                     var area = areas[a];
                     area.unit = getItemBy(units, "name", area.unit);
                     Areas.createAreaPoly(area);
+                    if(area.name == User.area) area.poly.pan();
                 }
                 Areas.calculateMissingFields();
             },

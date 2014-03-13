@@ -54,7 +54,7 @@ var PointPicker = function(elements, pickedResult, searchFields, directions) {
         if(!predictionBox) {
             var BORDER = 1;
             var PADDING = 4;
-        
+            
             var box = document.createElement('DIV');
             box.className = "prediction";
             var top = element.offsetHeight, left = 0, node = element;
@@ -97,6 +97,9 @@ var PointPicker = function(elements, pickedResult, searchFields, directions) {
                 else for(var key in item) if(check(item[key])) break;
             }
         }
+        
+        //Google maps search for address
+        items.push({ name: value, form: AddressSearch });
         
         //Display the predicted items
         predictionBox.innerHTML = "";

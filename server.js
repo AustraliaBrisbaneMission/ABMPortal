@@ -50,6 +50,9 @@ var Config = {
     chapels: { lastUpdate: new Date("2013-08-01") },
     seniors: {
         indicators: []
+    },
+    recommendations: {
+        viewNumber: 5
     }
 };
 function dumpConfig() {
@@ -887,6 +890,47 @@ server.post("/indicators/submit", function(req, res) {
         });
     });
 });
+function seniorIndicatorsToCSV(res, collection) {
+    db.seniorIndicators.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); return; }
+        var headings = [ "Date", "Area" ], ids = [], lines = [];
+        for(var i = 0; i < items.length; i++) {
+            var indicator = items[i];
+            headings.push(indicator.name);
+            ids.push(indicator._id);
+        }
+        lines.push(headings);
+        var cursor = collection.find();
+        function addRecord(error, result) {
+            if(error) {
+                console.log(error);
+                res.send(500);
+            }
+            else if(result) {
+                var line = [ result.date || "", result.area || "" ];
+                for(var i = 0; i < headings.length; i++) {
+                    var value = result[ids[i]];
+                    line[i + 2] = value === undefined ? "" : value;
+                }
+                lines.push(line);
+                cursor.next(addRecord);
+            }
+            else {
+                res.set("Content-Type", "text/csv");
+                res.send(csv.arrayToCsv(lines));
+            }
+        }
+        cursor.next(addRecord);
+    });
+}
+server.get("/indicators/senior_actuals.csv", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    seniorIndicatorsToCSV(res, db.seniorActuals);
+});
+server.get("/indicators/senior_goals.csv", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    seniorIndicatorsToCSV(res, db.seniorGoals);
+});
 function getSeniorIndicators(callback) {
     db.seniorIndicators.find().toArray(function(error, items) {
         if(error) console.log(error);
@@ -959,18 +1003,39 @@ server.get('/hastening', function(req, res) {
             $query: { stake: req.session.zone },
             $orderby: { date: -1 }
         };
-        db.hastening.findOne(query, function(error, lastReport) {
-            if(error) { console.log(error); }
-            //Send the page
-            var data = {
-                reportDate: reportDate,
-                stake: req.session.zone,
-                zoneLeaders: listify(zoneLeaders, "Elder", "Elders"),
-                units: units,
-                lastReport: lastReport
-            };
-            render(req, res, "hastening", data);
-        });
+        function complete() {
+            db.hastening.findOne(query, function(error, lastReport) {
+                if(error) { console.log(error); }
+                //Send the page
+                var data = {
+                    reportDate: reportDate,
+                    stake: req.session.zone,
+                    zoneLeaders: listify(zoneLeaders, "Elder", "Elders"),
+                    units: units,
+                    lastReport: lastReport
+                };
+                render(req, res, "hastening", data);
+            });
+        }
+        //Get district names for northern zone
+        var unitNames = [];
+        for(var name in units) unitNames.push(name);
+        var currentUnit = -1;
+        function nextUnit() {
+            var name = unitNames[++currentUnit];
+            if(!name) complete();
+            else db.units.findOne({ name: name }, function(error, item) {
+                if(error) { console.log(error); res.send(500, error); }
+                else {
+                    var unit = units[name];
+                    units[item.stake + " - " + unitNames[currentUnit]] = unit;
+                    delete units[name];
+                    nextUnit();
+                }
+            });
+        }
+        if(req.session.zone == "Northern") nextUnit();
+        else complete();
     });
 });
 server.post('/hastening/submit', function(req, res) {
@@ -979,6 +1044,7 @@ server.post('/hastening/submit', function(req, res) {
     var date = new Date();
     data.submitDate = formatDate(date);
     date.setMonth(date.getMonth() - 1);
+    date.setDate(1);
     data.date = formatDate(date);
     db.hastening.insert(data, function(error, result) {
         if(error) { console.log(error); res.send(500); }
@@ -994,6 +1060,86 @@ server.get('/hastening/get', function(req, res) {
     db.hastening.find().toArray(function(error, items) {
         if(error) { console.log(error); res.send(500); }
         else res.send(items);
+    });
+});
+server.get("/hastening/hastening.csv", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    db.hastening.find().toArray(function(error, items) {
+        if(error) { console.log(error); res.send(500); return; }
+        function fix(value, yesNo) {
+            if(value === undefined || value === null) return "";
+            if(yesNo) return value ? "Yes" : "No";
+            return value;
+        }
+        var headings = [
+            "Month Reported",
+            "Stake",
+            "Stake President",
+            "Goal",
+            "Zone Leaders"
+        ];
+        for(var a = 1; a < 20; a++) {
+            headings = headings.concat([
+                "Unit " + a + " - Name",
+                "Unit " + a + " - Ward Missionaries",
+                "Unit " + a + " - Full-Time Missionaries",
+                "Unit " + a + " - Has Ward Mission Plan",
+                "Unit " + a + " - WMP Has Been Referenced",
+                "Unit " + a + " - Member Presents",
+                "Unit " + a + " - Investigators At Church",
+                "Unit " + a + " - Missionary HT Families",
+                "Unit " + a + " - 15 Names - Names",
+                "Unit " + a + " - 15 Names - Invited",
+                "Unit " + a + " - 15 Names - Being Taught",
+                "Unit " + a + " - Rescue Visits",
+                "Unit " + a + " - Needs and Concerns",
+                "Unit " + a + " - WMP Date Last Reviewed",
+                "Unit " + a + " - Goal"
+            ]);
+            for(var b = 1; b <= 12; b++) {
+                headings.push("Unit " + a + " - Month " + b + " Baptisms");
+            }
+        }
+        var lines = [], line = [];
+        lines.push(headings);
+        for(var a = 0, length = items.length; a < length; a++) {
+            var item = items[a];
+            var line = [
+                fix(item.date),
+                fix(item.stake),
+                fix(item.president),
+                fix(item.goal),
+                fix(item.zoneLeaders)
+            ];
+            var units = item.units;
+            for(var b = 0; b < units.length; b++) {
+                var unit = units[b];
+                line = line.concat([
+                    fix(unit.name),
+                    fix(unit.wardMissionaries),
+                    fix(unit.fullTimeMissionaries),
+                    fix(unit.hasWardMissionPlan, true),
+                    fix(unit.hasBeenReferenced, true),
+                    fix(unit.memberPresents),
+                    fix(unit.investigatorsAtChurch),
+                    fix(unit.missionaryHomeTeaching),
+                    fix(unit.numberNames),
+                    fix(unit.numberInvited),
+                    fix(unit.numberBeingTaught),
+                    fix(unit.rescueVisits),
+                    fix(unit.needsAndConcerns),
+                    fix(unit.dateReviewed),
+                    fix(unit.goal)
+                ]);
+                for(var c = 1; c <= 12; c++) line.push(fix(unit["month" + b]));
+            }
+            for(var b = units.length; b < 20; b++) {
+                for(var c = 0; c < 27; c++) line.push("");
+            }
+            lines.push(line);
+        }
+        res.set("Content-Type", "text/csv");
+        res.send(csv.arrayToCsv(lines));
     });
 });
 
@@ -1285,13 +1431,14 @@ server.get('/recommendations/success', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "recommendations_success", {});
 });
-server.post('/recommendations/submit', function (req, res) {
+server.post("/recommendations/submit", function(req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     var data = [];
     var zone = req.session.zone || req.session.username;
     var zoneLeader = req.session.sso ? req.session.displayName : req.body[0].zoneLeader;
     for(var i = 0; i < req.body.length; i++) {
         data.push({
+            date: formatDate(new Date()),
             zoneLeader: zoneLeader,
             zone: zone,
             area: req.body[i].area,
@@ -1303,9 +1450,8 @@ server.post('/recommendations/submit', function (req, res) {
             comments: req.body[i].comments
         });
     }
-    db.recommendations.insert(data, {w:1}, dbCallback);
+    db.recommendations.insert(data, dbCallback);
     res.send(200);
-    console.log(data);
 });
 
 server.get('/admin/recommendations', function (req, res) {
@@ -1314,18 +1460,12 @@ server.get('/admin/recommendations', function (req, res) {
 });
 server.get('/admin/recommendations/get', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
-    db.recommendations.find().toArray(function(err, items) {
+    var date = new Date();
+    date.setDate(date.getDate() - 7 * 6 * Config.recommendations.viewNumber);
+    var query = { date: { $gt: formatDate(date) } };
+    db.recommendations.find(query).toArray(function(err, items) {
         if(err) { console.log(err); res.send(500); }
-        else {
-            for(var i = 0; i < items.length; i++) {
-                var date = new Date(items[i]._id.getTimestamp());
-                var year = date.getFullYear();
-                var month = date.getMonth() + 1;
-                var day = date.getDate();
-                items[i].date = year + "-" + month + "-" + day;
-            }
-            res.send(items, 200);
-        }
+        else res.send(items, 200);
     });
 });
 

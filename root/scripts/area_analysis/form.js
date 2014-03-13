@@ -258,6 +258,7 @@ Form.initialiseForms = function() {
     Form.search = document.createElement('DIV');
     Form.search.id = "form_search";
     var searchInput = document.createElement("INPUT");
+    searchInput.id = "search";
     searchInput.type = "text";
     searchInput.placeholder = "Search...";
     searchInput.onPick = function(item, form) { form.open(item); };

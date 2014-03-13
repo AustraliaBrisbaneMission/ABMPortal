@@ -104,16 +104,19 @@ function submitRecommendation() {
             });
         }
     }
-    var data = JSON.stringify(recommendations);
     document.getElementById('submit_button').value = "Submitting...";
     document.getElementById('submit_button').disabled = true;
-    $.post("/recommendations/submit", data, function(response) {
-        if(response != "OK") {
-            console.log("Response = " + response);
-            document.getElementById('submit_button').value = "Submit Recommendations";
-            document.getElementById('submit_button').disabled = false;
+    $.ajax("/recommendations/submit", {
+        data : JSON.stringify(recommendations),
+        contentType : "application/json",
+        type : "POST",
+        success: function(response) {
+            if(response != "OK") {
+                console.log("Response = " + response);
+                document.getElementById('submit_button').value = "Submit Recommendations";
+                document.getElementById('submit_button').disabled = false;
+            }
+            else window.location = "/recommendations/success";
         }
-        else window.location = "/recommendations/success";
     });
-    console.log(data);
 }
