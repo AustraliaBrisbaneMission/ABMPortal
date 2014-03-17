@@ -37,6 +37,22 @@ var icons = {
         url: iconBase + "senior_flat_highlight.png",
         size: [ 34, 41 ]
     },
+    homeFlat: {
+        url: iconBase + "home_flat.png",
+        size: [ 34, 41 ]
+    },
+    homeFlatHighlight: {
+        url: iconBase + "home_flat_highlight.png",
+        size: [ 34, 41 ]
+    },
+    officeFlat: {
+        url: iconBase + "office_flat.png",
+        size: [ 34, 41 ]
+    },
+    officeFlatHighlight: {
+        url: iconBase + "office_flat_highlight.png",
+        size: [ 34, 41 ]
+    },
     unknownFlat: {
         url: iconBase + "unknown_flat.png",
         size: [ 34, 41 ]
@@ -719,8 +735,19 @@ function initialise() {
         },
         onItemInitialise: function(flat) {
             function createMarker(result) {
-                flat.icon = icons.unknownFlat;
-                flat.iconHighlight = icons.unknownFlatHighlight;
+                var name = flat.name.toLowerCase();
+                if(name.indexOf("office") >= 0) {
+                    flat.icon = icons.officeFlat;
+                    flat.iconHighlight = icons.officeFlatHighlight;
+                }
+                else if(name.indexOf("home") >= 0) {
+                    flat.icon = icons.homeFlat;
+                    flat.iconHighlight = icons.homeFlatHighlight;
+                }
+                else {
+                    flat.icon = icons.unknownFlat;
+                    flat.iconHighlight = icons.unknownFlatHighlight;
+                }
                 flat.marker = new map.Marker({
                     show: true,
                     position: result ? result.position : flat.position,
@@ -1041,7 +1068,7 @@ function initialise() {
                 if(!areas.length || !flats.length) return;
                 for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
                     var area = areas[a];
-                    //Work out if it is an elder, sister or senior area
+                    //Work out if it is an elder, sister, senior area, office
                     var type = "unknown";
                     if(area.missionaries) {
                         var missionaryA = area.missionaries[0];
