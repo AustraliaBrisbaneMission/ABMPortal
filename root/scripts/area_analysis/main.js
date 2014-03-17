@@ -13,14 +13,38 @@ var icons = {
         url: iconBase + "chapel_highlight.png",
         size: [ 42, 51 ]
     },
-    flat: {
-        url: iconBase + "flat.png",
+    elderFlat: {
+        url: iconBase + "elder_flat.png",
         size: [ 34, 41 ]
     },
-    flatHighlight: {
-        url: iconBase + "flat_highlight.png",
+    elderFlatHighlight: {
+        url: iconBase + "elder_flat_highlight.png",
         size: [ 34, 41 ]
     },
+    sisterFlat: {
+        url: iconBase + "sister_flat.png",
+        size: [ 34, 41 ]
+    },
+    sisterFlatHighlight: {
+        url: iconBase + "sister_flat_highlight.png",
+        size: [ 34, 41 ]
+    },
+    seniorFlat: {
+        url: iconBase + "senior_flat.png",
+        size: [ 34, 41 ]
+    },
+    seniorFlatHighlight: {
+        url: iconBase + "senior_flat_highlight.png",
+        size: [ 34, 41 ]
+    },
+    unknownFlat: {
+        url: iconBase + "unknown_flat.png",
+        size: [ 34, 41 ]
+    },
+    unknownFlatHighlight: {
+        url: iconBase + "unknown_flat_highlight.png",
+        size: [ 34, 41 ]
+    }
 };
 var map;
 var cluster;
@@ -298,49 +322,48 @@ function initialise() {
             AddressSearch.resetColor();
             var address = document.getElementById("search").value;
             map.geocode(address + ", QLD", function(result) {
-                if(result && result.position) {
-                    AddressSearch.marker = new map.Marker({
-                        show: true,
-                        position: result.position,
-                        pan: true
-                    });
-                    map.zoom(13);
-                    Form.currentForm.innerHTML = "";
-                    var div = document.createElement("DIV");
-                    AddressSearch.area = null;
-                    var areas = Areas.items;
-                    for(var i = 0, length = areas.length; i < length; i++) {
-                        var poly = areas[i].poly;
-                        if(poly && poly.pointIsInside(result.position)) {
-                            AddressSearch.area = areas[i];
-                            poly.setOptions({
-                                fillColor: "#66f",
-                                strokeColor: "#66f"
-                            });
-                            break;
-                        }
+                AddressSearch.marker = new map.Marker({
+                    show: true,
+                    position: result.position,
+                    pan: true
+                });
+                map.zoom(13);
+                Form.currentForm.innerHTML = "";
+                var div = document.createElement("DIV");
+                AddressSearch.area = null;
+                var areas = Areas.items;
+                for(var i = 0, length = areas.length; i < length; i++) {
+                    var poly = areas[i].poly;
+                    if(poly && poly.pointIsInside(result.position)) {
+                        AddressSearch.area = areas[i];
+                        poly.setOptions({
+                            fillColor: "#66f",
+                            strokeColor: "#66f"
+                        });
+                        break;
                     }
-                    if(!AddressSearch.area) div.textContent = "Area: [NONE]";
-                    else {
-                        div.textContent = "Area: ";
-                        var a = document.createElement("A");
-                        a.href = "#Open Area";
-                        a.textContent = AddressSearch.area.name;
-                        a.addEventListener("click", function(e) {
-                            e.preventDefault();
-                            Areas.open(AddressSearch.area);
-                        }, false);
-                        div.appendChild(a);
-                    }
-                    Form.currentForm.appendChild(div);
-                    div = document.createElement("DIV");
-                    div.textContent = "Searched for '" + address + "'.";
-                    Form.currentForm.appendChild(div);
-                    div = document.createElement("DIV");
-                    div.textContent = "Found '" + result.address + "'...";
-                    Form.currentForm.appendChild(div);
                 }
-                else Form.currentForm.textContent = "No results found for '" +
+                if(!AddressSearch.area) div.textContent = "Area: [NONE]";
+                else {
+                    div.textContent = "Area: ";
+                    var a = document.createElement("A");
+                    a.href = "#Open Area";
+                    a.textContent = AddressSearch.area.name;
+                    a.addEventListener("click", function(e) {
+                        e.preventDefault();
+                        Areas.open(AddressSearch.area);
+                    }, false);
+                    div.appendChild(a);
+                }
+                Form.currentForm.appendChild(div);
+                div = document.createElement("DIV");
+                div.textContent = "Searched for '" + address + "'.";
+                Form.currentForm.appendChild(div);
+                div = document.createElement("DIV");
+                div.textContent = "Found '" + result.address + "'...";
+                Form.currentForm.appendChild(div);
+            }, function() {
+                Form.currentForm.textContent = "No results found for '" +
                     address + "'!";
             });
             Form.currentForm.textContent = "Searching for '" + address + "'...";
@@ -682,14 +705,13 @@ function initialise() {
         //labels: true,
         onOpen: function(itemIndex) {
             if(!Flats.currentItem.marker) return;
-            Flats.currentItem.marker.setOptions({ icon: icons.flatHighlight });
+            Flats.highlight(Flats.currentItem, true);
             map.pan(Flats.currentItem.marker.getPosition());
         },
         onClose: function() {
             if(Flats.currentItem && Flats.currentItem.marker) {
-                Flats.currentItem.marker.setOptions({ icon: icons.flat });
+                Flats.highlight(Flats.currentItem, false);
             }
-            Flats.marker.show(false);
         },
         onInitialise: function(items) {
             Areas.findFlats();
@@ -697,10 +719,12 @@ function initialise() {
         },
         onItemInitialise: function(flat) {
             function createMarker(result) {
+                flat.icon = icons.unknownFlat;
+                flat.iconHighlight = icons.unknownFlatHighlight;
                 flat.marker = new map.Marker({
                     show: true,
                     position: result ? result.position : flat.position,
-                    icon: icons.flat
+                    icon: flat.icon
                     //label: flat.name + " Flat"
                 });
                 Flats.mapElements.push(flat.marker);
@@ -727,9 +751,10 @@ function initialise() {
             return flat;
         },
         variables: {
-            marker: new map.Marker({
-                icon: icons.flatHighlight
-            }),
+            highlight: function(flat, highlighted) {
+                var icon = highlighted ? flat.iconHighlight : flat.icon;
+                if(flat.marker) flat.marker.setOptions({ icon: icon });
+            },
             uploaded: function(data) {
                 function getCell(cellName) {
                     var cells = {
@@ -929,7 +954,7 @@ function initialise() {
             }
             //Highlight the area's flat and chapel
             if(Areas.currentItem.flat && Areas.currentItem.flat.marker) {
-                Areas.currentItem.flat.marker.setOptions({ icon: icons.flatHighlight });
+                Flats.highlight(Areas.currentItem.flat, true);
             }
             Areas.currentItem.unit.chapel.marker.setOptions({ icon: icons.chapelHighlight });
         },
@@ -949,7 +974,7 @@ function initialise() {
                 }
             }
             if(Areas.currentItem.flat && Areas.currentItem.flat.marker) {
-                Areas.currentItem.flat.marker.setOptions({ icon: icons.flat });
+                Flats.highlight(Areas.currentItem.flat, false);
             }
             Areas.currentItem.unit.chapel.marker.setOptions({ icon: icons.chapel });
         },
@@ -1016,6 +1041,22 @@ function initialise() {
                 if(!areas.length || !flats.length) return;
                 for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
                     var area = areas[a];
+                    //Work out if it is an elder, sister or senior area
+                    var type = "unknown";
+                    if(area.missionaries) {
+                        var missionaryA = area.missionaries[0];
+                        var missionaryB = area.missionaries[1];
+                        if(missionaryA) {
+                            if(missionaryA.elder) {
+                                if(missionaryB && !missionaryB.elder) type = "senior";
+                                else type = "elder";
+                            }
+                            else {
+                                if(missionaryB && missionaryB.elder) type = "senior";
+                                else type = "sister";
+                            }
+                        }
+                    }
                     var areaName = areas[a].name;
                     var found = false;
                     for(var b = 0, flatLength = flats.length; b < flatLength; b++) {
@@ -1025,6 +1066,9 @@ function initialise() {
                             var flatArea = flatAreas[c];
                             if(areaName == flatArea) {
                                 area.flat = flat;
+                                flat.icon = icons[type + "Flat"];
+                                flat.iconHighlight = icons[type + "FlatHighlight"];
+                                Flats.highlight(flat, false);
                                 found = true;
                                 break;
                             }
@@ -1036,20 +1080,24 @@ function initialise() {
             },
             //Calculates any missing fields from each area and updates the database
             calculateMissingFields: function() {
-                var areas = Areas.items;
+                var areas = Areas.items, updates = [];
                 for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
                     var area = areas[a];
+                    var update = {}, updateNeeded = false;
                     if(!area.size && area.unit && area.unit.boundaries) {
-                        area.size = getArea(area.unit.boundaries);
+                        area.size = update.size = getArea(area.unit.boundaries);
+                        updateNeeded = true;
                         console.log("Area '" + area.name + "' size calculated at " + area.size + "km2!");
                     }
                     if(!area.centroid[0] && (area.boundaries && area.boundaries.length || area.unit && area.unit.boundaries && area.unit.boundaries.length)) {
                         var boundaries = area.boundaries && area.boundaries.length ? area.boundaries : area.unit.boundaries;
-                        area.centroid = calculateCentroid(boundaries);
+                        area.centroid = update.centroid = calculateCentroid(boundaries);
+                        updateNeeded = true;
                         console.log("Area '" + area.name + "' centroid calculated at " + area.centroid + "!");
                     }
                     if(!area.centroidDistance && area.centroid[0] && area.flat && area.flat.position) {
-                        area.centroidDistance = getDistance(area.centroid, area.flat.position);
+                        area.centroidDistance = update.centroidDistance = getDistance(area.centroid, area.flat.position);
+                        updateNeeded = true;
                         console.log("Area '" + area.name + "' centroid distance calculated at " + area.size + "km!");
                     }
                     if(!area.chapelDistance && area.chapel && area.chapel.address && area.flat && area.flat.address) {
@@ -1059,7 +1107,9 @@ function initialise() {
                             callback: Areas.chapelDistanceCallback
                         });
                     }
+                    if(updateNeeded) updates.push({ name: area.name, update: update });
                 }
+                if(updates.length) $.post("/maps/update_missing", updates);
             },
             chapelDistanceCallback: function(result) {
                 var path = result[0].path, distance = 0;
