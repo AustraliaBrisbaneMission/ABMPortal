@@ -104,6 +104,7 @@ var PointPicker = function(elements, pickedResult, searchFields, directions) {
         //Display the predicted items
         predictionBox.innerHTML = "";
         if(!items.length) predictionBox.innerHTML = "No Results";
+        element.item = items[0];
         for(var a = 0; a < items.length; a++) {
             var item = items[a];
             var name = document.createElement('SPAN');
@@ -159,10 +160,14 @@ var PointPicker = function(elements, pickedResult, searchFields, directions) {
         mapContainer.addEventListener('mousedown', stopUnfocusing, false);
         pick(e.target);
     }
+    function enter(e) {
+        if(e.keyCode == 13 && this.item) element.onPick(this.item, this.item.form);
+    }
     me.addEvents = function(element) {
         element.addEventListener('focus', focus, false);
         element.addEventListener('blur', blur, false);
         element.addEventListener('keyup', predict, false);
+        element.addEventListener("keydown", enter, false);
     };
     
     for(var i = 0; i < elements.length; i++) {

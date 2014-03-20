@@ -336,29 +336,32 @@ var Map = function(element) {
     
     //Geocode address
     var toGeocode = [], geoStamp = null;
-    me.geocode = function(address, callback) {
+    me.geocode = function(address, success, failure) {
         //A loop is used to stop many requests hitting the query limit
-        toGeocode.push({ address: address, callback: callback });
+        toGeocode.push({ address: address, success: success, failure: failure });
         if(!geoStamp) geocodeLoop();
     };
     function geocodeLoop() {
         if(toGeocode.length) {
-            geocodeGo(toGeocode[0].address, toGeocode[0].callback);
+            geocodeGo(toGeocode[0]);
             geoStamp = setTimeout(geocodeLoop, 1000);
             toGeocode.splice(0, 1);
         }
         else geoStamp = null;
     }
-    function geocodeGo(address, successCallback) {
-        geocoder.geocode( { address: address }, function(results, status) {
+    function geocodeGo(geocodeMe) {
+        geocoder.geocode( { address: geocodeMe.address }, function(results, status) {
             if(status == google.maps.GeocoderStatus.OK) {
                 var result = {
                     position: convertFromPosition(results[0].geometry.location),
                     address: results[0].formatted_address
                 };
-                successCallback(result);
+                if(geocodeMe.success) geocodeMe.success(result);
             }
-            else console.log('Geocode Error: ' + status);
+            else {
+                console.log('Geocode Error: ' + status);
+                if(geocodeMe.failure) geocodeMe.failure();
+            }
         });
     }
     

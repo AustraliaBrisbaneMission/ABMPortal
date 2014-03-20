@@ -3,10 +3,8 @@ var express = require('express'),
     nib = require('nib'),
     crypto = require('crypto'),
     mongodb = require('mongodb'),
-    //sql = require('sql'),
     csv = require('./root/scripts/ucsv-1.1.0-min.js'),
     request = require("request"),
-    fs = require("fs"),
     nodemailer = require("nodemailer");
 
 //Configuration
@@ -41,8 +39,8 @@ var Config = {
     },
     standards: { elder: {}, sister: {} },
     indicators: {
-        startDate: "2013-07-15",
-        latestDate: "2013-07-15",
+        startDate: "2013-08-01",
+        latestDate: "2013-08-01",
         latestUpdate: "2013-08-01",
         daysUntilNextUpdate: 1,
         displayWeeks: 6
@@ -74,6 +72,7 @@ db.db.open(function(error, database) {
         db.recommendations = db.database.collection('recommendations');
         db.users = db.database.collection('users');
         db.indicators = db.database.collection('indicators');
+        db.savedIndicators = db.database.collection('savedIndicators');
         db.callsheet = db.database.collection('callsheet');
         db.config = db.database.collection('config');
         db.store = db.database.collection('store');
@@ -113,9 +112,7 @@ db.db.open(function(error, database) {
             Email = new Emailer();
             if(checkDaysPassed(Config.chapels.lastUpdate, 7)) updateChapels();
         });
-        db.indicators.findOne({ $query: {}, $orderby: { date: -1 }}, function(err, result) {
-            if(result) Config.indicators.latestDate = new Date(result.date);
-        });
+        getLatestIndicators();
         getStandards();
         getSeniorIndicators();
     }
@@ -546,35 +543,32 @@ var Auth = {
         if(date) date = new Date(date);
         else date = new Date(Config.indicators.latestDate);
         //Convert the date to the Monday starting the reported week
-        console.log("Passed In Date = " + formatDate(date));
         toWeekStart(date);
         var formattedDate = formatDate(date);
-        console.log("Indicators Start Date = " + Config.indicators.startDate);
-        console.log("Latest Indicators in DB Date = " + Config.indicators.latestDate);
-        console.log("Date Currently Finding Indicators for = " + formattedDate);
         //Do not sync if there are indicators in the old format
         if(formattedDate < Config.indicators.startDate) {
-            console.log("Reached indicators start date while updating indicators. Stopping...");
+            console.log("INDICATORS: Reached indicators start date while updating indicators. Stopping...");
             return;
         }
-        if(!all && formattedDate > formatDate(new Date())) {
-            console.log("Reached latest indicators date. Stopping...");
+        var thisWeek = new Date();
+        toWeekStart(thisWeek);
+        if(!all && formattedDate >= formatDate(thisWeek)) {
+            console.log("INDICATORS: Reached this week. Stopping...");
             return;
         }
         //IMOS gets reports for the week that contains the date
         //(Sending a Wednesday would get the Monday before the Wednesday to the Sunday after's indicators)
         //(The date on the IMOS indicators is the Monday beginning the reported week)
-        console.log("Date Sent to IMOS = " + formattedDate);
+        console.log("INDICATORS: Getting indicators for " + formattedDate);
         var url = "https://imos.ldschurch.org/imos-ki-ws/report/" + formattedDate + "/" + formattedDate + "/mission/14292";
         Auth.sso(req, url, function(result) {
             //Return if the user does not have authority
             if(!result || !result.entity) {
-                console.log("User does not have IMOS access. Stopping...");
+                console.log("INDICATORS: User does not have IMOS access. Stopping...");
                 if(callback) callback(false);
                 return;
             }
             else if(callback) callback(true);
-            console.log("Getting indicators for " + formattedDate + "...");
             //Get key indicator IDs
             var logs = { "Items updated:": 0 };
             var indicatorNames = {
@@ -603,11 +597,11 @@ var Auth = {
             for(var a = 0; a < zones.length; a++) {
                 var zone = zones[a];
                 var districts = zone.entities;
-                if(!districts) { console.log("No districts in zone " + zone.name); continue; }
+                if(!districts) { console.log("INDICATORS: No districts in zone " + zone.name); continue; }
                 for(var b = 0; b < districts.length; b++) {
                     var district = districts[b];
                     var areas = district.entities;
-                    if(!areas) { console.log("No areas in district " + district.name); continue; }
+                    if(!areas) { console.log("INDICATORS: No areas in district " + district.name); continue; }
                     for(var c = 0; c < areas.length; c++) {
                         var area = areas[c];
                         if(!area.entities) continue;
@@ -664,17 +658,20 @@ var Auth = {
                 }
             }
             req.session.imos = true;
+            //Show the logs
+            for(var message in logs) {
+                console.log("INDICATORS: " + message + " (x" + logs[message] + ")");
+            }
             //Sync indicators for next week
             var nextWeek = new Date(formattedDate);
             nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
-            console.log("Date = " + date + " & Next Week = " + nextWeek);
+            console.log("INDICATORS: Just found: " + formattedDate + " & Next Week: " + formatDate(nextWeek));
             setTimeout(function() { Auth.updateIndicators(req, nextWeek); }, 10000);
             //Update latest update
             setConfig("indicators", "latestUpdate", formatDate(new Date()));
-            //Show the logs
-            for(var message in logs) {
-                console.log(message + " (x" + logs[message] + ")");
-            }
+            //Update date of latest indicators in database
+            if(formattedDate > Config.indicators.latestDate)
+                setConfig("indicators", "latestDate", formattedDate);
         });
     }
 };
@@ -1539,6 +1536,49 @@ server.post('/callsheet/db', function (req, res) {
 
 new Page("/graphs", "graphs.jade", Auth.ADMIN);
 
+function getLatestIndicators() {
+    db.indicators.findOne({ $query: {}, $orderby: { date: -1 }}, function(err, result) {
+        if(result) Config.indicators.latestDate = result.date;
+        else Config.indicators.latestDate = "2013-08-01";
+    });
+}
+
+function cloneCollection(fromCollection, toCollection, callback) {
+    var newItems = [], cursor = fromCollection.find({});
+    //Clear existing records
+    toCollection.remove({}, function(error, result) {
+        if(error) callback(error);
+        else cursor.each(function(error, item) {
+            if(error) callback(error);
+            else if(item) {
+                var newItem = {};
+                for(var key in item) {
+                    if(key != "_id") newItem[key] = item[key];
+                }
+                newItems.push(newItem);
+            }
+            else toCollection.insert(newItems, function(error, result) {
+                if(error) callback(error);
+                else callback();
+            });
+        });
+    });
+}
+server.get("/import/save_indicators", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    cloneCollection(db.indicators, db.savedIndicators, function(error) {
+        if(error) { console.log(error); res.send(500, error); }
+        else res.send("Success!");
+    });
+});
+server.get("/import/reset_indicators", function(req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    cloneCollection(db.savedIndicators, db.indicators, function(error) {
+        if(error) { console.log(error); res.send(500, error); }
+        else res.send("Success!");
+    });
+});
+
 //Importing / Exporting
 new Page("/import", "import.jade", Auth.ADMIN);
 var importCollections = null;
@@ -1558,6 +1598,14 @@ server.post('/import/db', function (req, res) {
         });
     }
     else res.send(500, "Unknown action");
+});
+server.get('/import/clear_indicators', function (req, res) {
+    if(Auth.require(req, res, Auth.ADMIN)) return;
+    db.indicators.remove({}, function(error, result) {
+        if(error) { console.log(error); res.send(500, error); }
+        else res.send();
+        getLatestIndicators();
+    });
 });
 var wardAlias = {
     "Manly Australia": "Manly",
@@ -1961,7 +2009,7 @@ function updateChapels() {
     console.log("CHAPELS: Updating...");
     db.units.find().toArray(function(error, items) {
         if(error) { console.log(error); updatingChapels = false; return; }
-        var index = -1, chapels = {};
+        var index = -1, chapels = {}, retries = 0;
         function update() {
             if(++index >= items.length) {
                 //We've done every unit so add the chapels now
@@ -1979,50 +2027,81 @@ function updateChapels() {
                 return;
             }
             var unit = items[index];
+            if(unit.name.toLowerCase() == "australia brisbane mission") {
+                console.log("CHAPELS: Skipping ABM Branch...");
+                if(index && !(index % 10)) console.log("CHAPELS: " + Math.round(index / items.length * 100) + "%");
+                setTimeout(update, 10000);
+                return;
+            }
             var unitName = unit.name.replace(/ /g, "+") + (unit.branch ? "+Branch" : "+Ward");
             var uri = "https://www.lds.org/maps/services/search?query=" + unitName;
             request({ uri: uri, method: "GET" }, function(error, response, body) {
-                var status = response.statusCode, result;
-                if(error) console.log("Error Connecting to Server: " + error);
-                else if(status != 200) console.log("Status Error: " + status);
-                else {
-                    result = JSON.parse(body);
-                    //Try and find the best result (First result is not always
-                    //the chapel and ABM chapels are not all in Queensland)
-                    var bestResult = null;
-                    for(var i = 0, length = result.length; i < length; i++) {
-                        var item = result[i];
-                        if(item.type != "ward" && item.type != "branch") continue;
-                        var address = item.address;
-                        if(!address) continue;
-                        if(address.state == "QUEENSLAND") { bestResult = item; break; }
-                        else if(address.country == "AUSTRALIA" && !bestResult) bestResult = item;
+                var status = response.statusCode, result = [];
+                if(error) {
+                    console.log("Error Connecting to Server: " + error);
+                    //Retry if it fails
+                    if(retries < 3) {
+                        retries++;
+                        index--;
                     }
-                    if(bestResult) {
-                        var addy = bestResult.address;
-                        var address = "";
-                        if(addy.street) address += capitalise(addy.street);
-                        if(addy.city) address += ", " + capitalise(addy.city);
-                        if(addy.state) address += ", " + capitalise(addy.state);
-                        if(addy.zip) address += " " + addy.zip;
-                        var name = addy.city ? capitalise(addy.city) : unit.name;
-                        var position = [ bestResult.coordinates[1], bestResult.coordinates[0] ];
-                        if(chapels[address]) chapels[address].units.push(unit.name);
-                        else chapels[address] = {
-                            name: name,
-                            address: address,
-                            units: [ unit.name ],
-                            position: position
-                        };
-                        var query = { _id: unit._id };
-                        var data = { $set: { chapel: name, phone: bestResult.phone } };
-                        db.units.update(query, data, dbLogIfError);
-                    }
-                    else console.log("CHAPELS: NO RESULTS FOR " + unitName + "!!!");
-                    //Log the progress of updating all the chapels
-                    if(index && !(index % 10)) console.log("CHAPELS: " + Math.round(index / items.length * 100) + "%");
-                    setTimeout(update, 5000);
+                    else console.log("Failed finding " + unitName);
                 }
+                else if(status != 200) {
+                    console.log("Status Error: " + status);
+                    //Retry if it fails
+                    if(retries < 3) {
+                        retries++;
+                        index--;
+                    }
+                    else console.log("Failed finding " + unitName);
+                }
+                else {
+                    try { result = JSON.parse(body); retries = 0; }
+                    catch(error) {
+                        console.log("Parse Error: " + error);
+                        //Retry if it fails
+                        if(retries < 3) {
+                            retries++;
+                            index--;
+                        }
+                        else console.log("Failed finding " + unitName);
+                    }
+                }
+                //Try and find the best result (First result is not always
+                //the chapel and ABM chapels are not all in Queensland)
+                var bestResult = null;
+                for(var i = 0, length = result.length; i < length; i++) {
+                    var item = result[i];
+                    if(item.type != "ward" && item.type != "branch") continue;
+                    var address = item.address;
+                    if(!address) continue;
+                    if(address.state == "QUEENSLAND") { bestResult = item; break; }
+                    else if(address.country == "AUSTRALIA" && !bestResult) bestResult = item;
+                }
+                if(bestResult) {
+                    var addy = bestResult.address;
+                    var address = "";
+                    if(addy.street) address += capitalise(addy.street);
+                    if(addy.city) address += ", " + capitalise(addy.city);
+                    if(addy.state) address += ", " + capitalise(addy.state);
+                    if(addy.zip) address += " " + addy.zip;
+                    var name = addy.city ? capitalise(addy.city) : unit.name;
+                    var position = [ bestResult.coordinates[1], bestResult.coordinates[0] ];
+                    if(chapels[address]) chapels[address].units.push(unit.name);
+                    else chapels[address] = {
+                        name: name,
+                        address: address,
+                        units: [ unit.name ],
+                        position: position
+                    };
+                    var query = { _id: unit._id };
+                    var data = { $set: { chapel: name, phone: bestResult.phone } };
+                    db.units.update(query, data, dbLogIfError);
+                }
+                else console.log("CHAPELS: NO RESULTS FOR " + unitName + "!!!");
+                //Log the progress of updating all the chapels
+                if(index && !(index % 10)) console.log("CHAPELS: " + Math.round(index / items.length * 100) + "%");
+                setTimeout(update, 10000);
             });
         }
         update();

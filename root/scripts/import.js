@@ -63,8 +63,10 @@ function importIndicators(csv) {
     for(var i = 1; i < lines.length; i++) {
         var line = lines[i];
         if(line.length < KI_VALUE_COLUMN) continue;
-        var date = formatDate(new Date(line[DATE_COLUMN]));
-        if(date < "2013-08-01") continue;
+        var date = new Date(line[DATE_COLUMN]);
+        toWeekStart(date);
+        date = formatDate(date);
+        if(date < "2013-07-29") continue;
         var recordName = date + " " + line[AREA_COLUMN];
         var record = records[recordName];
         if(!record) {
@@ -553,6 +555,7 @@ function importOld2013(csv) {
     
     var lines = CSV.csvToArray(csv);
     var date = new Date(lines[DATE_ROW][DATE_COLUMN]);
+    toWeekStart(date);
     var zone = "";
     $.each(lines, function(lineNumber, line) {
         if(typeof line[0] == "string" && line[0].substr(-5).toLowerCase() == " zone") {
@@ -751,6 +754,7 @@ function importOld2012(csv) {
     
     var lines = CSV.csvToArray(csv);
     var date = new Date(lines[DATE_ROW][DATE_COLUMN]);
+    toWeekStart(date);
     var zone = "";
     $.each(lines, function(lineNumber, line) {
         if(typeof line[0] == "string" && line[0].substr(-5).toLowerCase() == " zone") {
@@ -871,6 +875,7 @@ function importOld2011(csv) {
     
     var lines = CSV.csvToArray(csv);
     var date = new Date(lines[DATE_ROW][DATE_COLUMN]);
+    toWeekStart(date);
     var zone = "";
     $.each(lines, function(lineNumber, line) {
         if(typeof line[0] == "string" && line[0].substr(-5).toLowerCase() == " zone") {
@@ -1061,6 +1066,27 @@ function importWards(files) {
 }
 
 $(window).load(function() {
+    $('#ki_delete').on('click', function(e) {
+        if(confirm("Are you sure you want to delete all key indicator data?")) {
+            $.get("/import/clear_indicators", function(result) {
+                $('#ki_status').text("Deleted Successfully!");
+            });
+        }
+    });
+    $('#ki_save').on('click', function(e) {
+        if(confirm("Are you sure you want to save all indicators currently in the database for restoring in future?")) {
+            $.get("/import/save_indicators", function(result) {
+                $('#ki_status').text("Backed Up Successfully!");
+            });
+        }
+    });
+    $('#ki_reset').on('click', function(e) {
+        if(confirm("Are you sure you want to reset all indicators to the saved indicators?")) {
+            $.get("/import/reset_indicators", function(result) {
+                $('#ki_status').text("Reset Successfully!");
+            });
+        }
+    });
     function importButton(id, description, collection, callback) {
         $('#imports').append(
             $('<div id="' + id + '_container"></div>').append(
@@ -1072,15 +1098,7 @@ $(window).load(function() {
                     reader.onload = function(e) { callback(e.target.result); };
                     reader.readAsText(file);
                 }),
-                '<span id="' + id + '_status"></span>',
-                $('#' + id + '_delete').on('click', function(e) {
-                    if(confirm("Are you sure you want to delete all key indicator data?")) {
-                        var data = { action: "delete", collection: collection };
-                        $.post("/import/db", data, function(result) {
-                            $('#' + id + '_status').text("Deleted Successfully!");
-                        });
-                    }
-                })
+                '<span id="' + id + '_status"></span>'
             )
         );
     }
@@ -1410,4 +1428,7 @@ function splitFindingPotentials(value) {
     }
     else if(value.length == 1) finding = parseInt(value);
     return { finding: finding || 0, potentials: potentials || 0 };
+}
+function toWeekStart(date) {
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() || 7) + 1);
 }
