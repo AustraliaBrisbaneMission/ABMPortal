@@ -385,7 +385,7 @@ function initialise() {
             Form.currentForm.textContent = "Searching for '" + address + "'...";
         },
         onClose: function() {
-            AddressSearch.marker.hide();
+            if(AddressSearch.marker) AddressSearch.marker.hide();
             AddressSearch.resetColor();
         },
         variables: {
@@ -909,9 +909,9 @@ function initialise() {
         displayName: "Areas",
         fields: {
             changeBoundaries: {
-                noDisplay: User.auth < Auth.ADMIN,
                 displayName: "Change Area Boundaries",
                 render: function() {
+                    if(User.auth < Auth.ZL && Areas.currentItem.unit.name != User.unit) return null;
                     var a = document.createElement("A");
                     a.href = "#Change Area Boundaires";
                     a.textContent = "Click to add boundaries...";
@@ -1111,10 +1111,15 @@ function initialise() {
                 for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
                     var area = areas[a];
                     var update = {}, updateNeeded = false;
-                    if(!area.size && area.unit && area.unit.boundaries) {
-                        area.size = update.size = getArea(area.unit.boundaries);
-                        updateNeeded = true;
-                        console.log("Area '" + area.name + "' size calculated at " + area.size + "km2!");
+                    if(!area.size) {
+                        var boundaries = area.boundaries;
+                        if((!boundaries || !boundaries.length) && area.unit && area.unit.boundaries)
+                            boundaries = area.unit.boundaries;
+                        if(boundaries && boundaries.length) {
+                            area.size = update.size = getArea(boundaries);
+                            updateNeeded = true;
+                            console.log("Area '" + area.name + "' size calculated at " + area.size + "km2!");
+                        }
                     }
                     if(!area.centroid[0] && (area.boundaries && area.boundaries.length || area.unit && area.unit.boundaries && area.unit.boundaries.length)) {
                         var boundaries = area.boundaries && area.boundaries.length ? area.boundaries : area.unit.boundaries;
@@ -1139,6 +1144,7 @@ function initialise() {
                 if(updates.length) $.post("/maps/update_missing", updates);
             },
             chapelDistanceCallback: function(result) {
+                if(!result || !result[0] || !result[0].path) return;
                 var path = result[0].path, distance = 0;
                 Areas.chapelPathPoly = new map.Polyline({
                     show: true,
@@ -1147,9 +1153,11 @@ function initialise() {
                 for(var i = 1, pathLength = path.length; i < pathLength; i++) {
                     distance += getDistance(path[i - 1], path[i]);
                 }
-                area.chapelPath = path;
-                area.chapelDistance = distance;
+                var update = {};
+                area.chapelPath = update.chapelPath = path;
+                area.chapelDistance = update.chapelDistance = distance;
                 console.log("Area '" + area.name + "' chapel distance calculated at " + distance + "km!");
+                $.post("/maps/update_missing", { name: area.name, update: update });
             },
             changeBoundaries: function(e) {
                 e.preventDefault();
@@ -1428,6 +1436,7 @@ function initialise() {
                 area.poly = AreaSplits.areaPoly;
                 area.missingBoundaries = false;
                 area.boundaries = area.points = area.poly.getPath();
+                AreaSplits.updateAreaFields(area);
                 
                 //Add the area labels to the list of map elements
                 Areas.mapElements.push(AreaSplits.areaPoly.label);
@@ -1438,6 +1447,7 @@ function initialise() {
                 for(var i = 0; i < areas.length; i++) {
                     var item = getItemBy(Areas.items, "name", areas[i]);
                     if(item) item.poly = AreaSplits.sharedPoly;
+                    AreaSplits.updateAreaFields(areas[i]);
                 }
                 area.unit.sharedPoly = AreaSplits.sharedPoly;
                 //Prevent the onClose function from hiding the shared polygon
@@ -1485,6 +1495,9 @@ function initialise() {
                 }
                 $.post("/maps/splits/reset", { unit: unit.name });
                 Areas.open(AreaSplits.area);
+            },
+            updateAreaFields: function(area) {
+                
             }
         }
     });

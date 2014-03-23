@@ -1,0 +1,154 @@
+<html>
+  <head>
+    <title>Ward List Importer</title>
+    <script type="text/javascript" src="ucsv-1.1.0-min.js"></script>
+    <script type="text/javascript" src="Blob.js"></script>
+    <script type="text/javascript" src="FileSaver.js"></script>
+    <script type="text/javascript" src="wardlist_importer.js"></script>
+    <style>
+body { font-family: sans-serif; }
+#options { float: left; }
+#rightContainer {
+  float: left;
+  margin: 8px;
+  text-align: center;
+  width: 340px;
+}
+#rightContainer ul {
+  text-align: left;
+}
+#save { margin-top: 16px; }
+.step {
+  min-height: 24px;
+  border: 2px solid #999;
+  background-color: #ccc;
+  border-radius: 8px;
+  margin: 4px;
+  padding: 4px;
+}
+.step input[type="text"] {
+  width: 300px;
+}
+.stepNumber {
+  color: #fff;
+  background-color: #309;
+  border: 2px solid #006;
+  border-radius: 20px;
+  width: 20px;
+  height: 20px;
+  text-align: center;
+  float: left;
+  margin-right: 8px;
+  font-weight: bold;
+}
+.success {
+  color: #090;
+}
+.error {
+  color: #900;
+}
+#householdList {
+  max-height: 300px;
+  background-color: #fff;
+  border: 1px solid #999;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.listHousehold { font-weight: bold; }
+.listAddress { padding-left: 8px; }
+.row, .row input { cursor: pointer; }
+.row:hover { background-color: #999; }
+.band { background-color: #ddf}
+#emulator {
+    border: 2px solid grey;
+    border-radius: 16px;
+    display: inline-block;
+    background-color: #111;
+}
+#screen {
+    margin: 16px;
+    width: 240px;
+    height: 320px;
+    background-color: #333;
+}
+#screen div { background-color: #FFF; }
+#screen iframe {
+    width: 240px;
+    height: 300px;
+    border: none;
+}
+#households {
+    float: left;
+}
+    </style>
+  </head>
+  <body>
+    <div id="options">
+      <h1>Ward List Importer for Phone</h1>
+      <h3>NOTE: This will only work on Nokia C2-01s...</h3>
+      <div class="step">
+        <div class="stepNumber">1</div>
+        <span>
+          Obtain a CSV file of the ward directory
+          from the ward clerk
+        </span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">2</div>
+        <span>Select ward directory file:</span>
+        <input type="file" accept=".csv" id="wl" />
+        <span id="status2"></span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">3</div>
+        <span>Area Name:</span>
+        <input type="text" id="unitName" />
+        <span id="status3"></span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">4</div>
+        <span>Suburbs in Your Area:</span>
+        <input type="text" id="suburbs" />
+        <span id="status4"></span>
+        <div>
+          (List suburbs separated by commas
+          eg. Chermside, Wavell Heights, Aspley)
+        </div>
+      </div>
+      <div class="step">
+        <div class="stepNumber">5</div>
+        <span>
+          Check this list and tick any households that
+          are in your area:
+        </span>
+        <span id="status5"></span>
+        <div id="householdList"></div>
+      </div>
+    </div>
+    <div id="rightContainer">
+      <h2>Instructions</h2>
+      <ul>
+        <li>
+          Click on a letter at the top to find a household
+          quickly
+        </li>
+        <li>
+          Click on a person's name to view their CMIS data
+          (To close CMIS data, click anywhere...)
+        </li>
+        <li>
+          Press any key to toggle between people in your
+          area and everyone in the ward
+        </li>
+      </ul>
+      <div id="emulator">
+        <div id="screen">
+          <div><iframe id="output"></iframe></div>
+        </div>
+      </div>
+      <div>
+        <button id="save">Save for Phone!</button>
+      </div>
+    </div>
+  </body>
+</html>

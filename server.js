@@ -1724,8 +1724,8 @@ server.get('/import/indicators.csv', function (req, res) {
                 var missionaries = [];
                 if(req.query.missionary && !checkForMissionary(value, req.query.missionary)) return;
                 for(var i in value) {
-                    if(req.query.fullName) missionaries.push(value[i]);
-                    else missionaries.push(value[i].substring(0, value[i].indexOf(',')));
+                    if(!req.query.shortName) missionaries.push(value[i].substring(0, value[i].indexOf(',')));
+                    else missionaries.push(value[i]);
                 }
                 line[indexes.missionaries] = missionaries.join(" / ");
             }
@@ -2160,6 +2160,21 @@ server.post('/maps/units', function(req, res) {
         });
     });
 });
+server.post("/maps/update_missing", function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    var index = -1;
+    function next(error, result) {
+        if(error) { console.log(error); res.send(500, error); }
+        else if(++index < req.body.length) {
+            var item = req.body[index];
+            var query = { name: item.name };
+            var update = { $set: item.update };
+            db.area.update(query, update, next);
+        }
+        else res.send();
+    }
+    next();
+});
 server.post('/maps/db', function (req, res) {
     if(Auth.require(req, res, Auth.NORMAL)) return;
     var collection, id;
@@ -2182,7 +2197,33 @@ server.post('/maps/db', function (req, res) {
                     else res.send(items);
                 });
             }
-            else if(req.body.collection == "flat") res.send([]);
+            else if(req.body.collection == "flat") {
+                collection.find().toArray(function(err, items) {
+                    if(err) { console.log(err); res.send(500, err); }
+                    else db.area.find({ zone: req.session.zone }).toArray(function(err, areas) {
+                        var flats = [];
+                        for(var a = 0, length = items.length; a < length; a++) {
+                            var flat = items[a];
+                            var name = flat.name.toLowerCase();
+                            var areasInFlat = flat.areas;
+                            var inZone = name.indexOf("office") >= 0 || name.indexOf("home") >= 0;
+                            if(inZone) flats.push(flat);
+                            else if(areasInFlat) for(var b = 0; b < areasInFlat.length; b++) {
+                                var areaName = areasInFlat[b];
+                                for(var c = 0; c < areas.length; c++) {
+                                    if(areaName == areas[c].name) {
+                                        flats.push(flat);
+                                        inZone = true;
+                                        break;
+                                    }
+                                }
+                                if(inZone) break;
+                            }
+                        }
+                        res.send(flats);
+                    });
+                });
+            }
             else collection.find().toArray(function(err, items) {
                 if(err) { console.log(err); res.send(500, err); }
                 else res.send(items);
@@ -2207,7 +2248,7 @@ server.post('/maps/db', function (req, res) {
             else {
                 collection.find(id).toArray(function(err, items) {
                     if(err) { console.log(err); res.send(500, err); }
-                    else res.send(items, 200);
+                    else res.send(items);
                 });
             }
         });
@@ -2517,3 +2558,13 @@ msw = (x >> 16) + (y >> 16) + (lsw >> 16);
 return (msw << 16) | (lsw & 0xFFFF);
 }
 }
+//TODO: Remove before push...
+//-----------
+server.get("/make_dl", function(req, res) {
+    Auth.setSession(req, { auth: Auth.DL });
+    res.send("You now have the authority of a DL!");
+});
+server.get("/make_zl", function(req, res) {
+    Auth.setSession(req, { auth: Auth.ZL });
+    res.send("You now have the authority of a ZL!");
+});

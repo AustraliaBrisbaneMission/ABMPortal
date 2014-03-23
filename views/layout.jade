@@ -40,7 +40,7 @@ block body
           if auth >= 5
             li
               a(href="/store") Storeroom
-          if auth >= 5
+          if auth >= 3
             li
               a(href="/standards") Standards of Excellence
           if auth >= 4
@@ -58,7 +58,7 @@ block body
           if auth >= 5
             li
               a(href="/historical_data" target="_blank") Historical Data
-          if auth >= 4 || senior
+          if auth >= 2
             li
               a(href="/maps") Mission Maps
           if auth >= 5
