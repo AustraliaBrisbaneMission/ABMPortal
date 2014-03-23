@@ -2112,13 +2112,20 @@ var areaAnalysisCollections = null;
 server.post("/maps/splits/reset", function(req, res) {
     if(Auth.require(req, res, Auth.NORMAL, true)) return;
     //Non-admin users cannot edit other unit's area boundaries
-    if(req.session.auth < Auth.ADMIN && req.body.unit != req.session.unit) {
+    if(req.session.auth < Auth.ZL && req.body.unit != req.session.unit) {
         res.send(500);
         return;
     }
     //Remove area boundaries belonging to the unit
     var query = { unit: req.body.unit };
-    var update = { $set: { boundaries: [] } };
+    var update = { $set: {
+        boundaries: [],
+        centroid: null,
+        centroidDistance: null,
+        chapelDistance: null,
+        chapelPath: null,
+        size: null
+    } };
     db.area.update(query, update, { multi: true }, function(err, result) {
         if(err) { console.log(err); res.send(500, err); return; }
         //Reset the unit's shared boundaries
@@ -2133,7 +2140,7 @@ server.post("/maps/splits/reset", function(req, res) {
 server.post("/maps/splits/add", function(req, res) {
     if(Auth.require(req, res, Auth.NORMAL, true)) return;
     //Non-admin users cannot edit other unit's area boundaries
-    if(req.session.auth < Auth.ADMIN && req.body.unit != req.session.unit) {
+    if(req.session.auth < Auth.ZL && req.body.unit != req.session.unit) {
         res.send(500);
         return;
     }
@@ -2142,11 +2149,22 @@ server.post("/maps/splits/add", function(req, res) {
     var update = { $set: { boundaries: req.body.boundaries } };
     db.area.update(query, update, function(err, result) {
         if(err) { console.log(err); res.send(500, err); return; }
-        var query = { name: req.body.unit };
-        var update = { $set: { sharedBoundaries: req.body.sharedBoundaries } };
-        db.units.update(query, update, function(err, result) {
-            if(err) { console.log(err); res.send(500, err); }
-            else res.send();
+        var query = { unit: req.body.unit };
+        var update = { $set: {
+            centroid: null,
+            centroidDistance: null,
+            chapelDistance: null,
+            chapelPath: null,
+            size: null
+        } };
+        db.area.update(query, update, { multi: true }, function(err, result) {
+            if(err) { console.log(err); res.send(500, err); return; }
+            var query = { name: req.body.unit };
+            var update = { $set: { sharedBoundaries: req.body.sharedBoundaries } };
+            db.units.update(query, update, function(err, result) {
+                if(err) { console.log(err); res.send(500, err); }
+                else res.send();
+            });
         });
     });
 });

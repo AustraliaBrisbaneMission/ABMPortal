@@ -1061,7 +1061,7 @@ function initialise() {
                     Areas.createAreaPoly(area);
                     if(area.name == User.area) area.poly.pan();
                 }
-                Areas.calculateMissingFields();
+                Areas.calculateMissingFields(Areas.items);
             },
             findFlats: function() {
                 var areas = Areas.items, flats = Flats.items;
@@ -1103,11 +1103,11 @@ function initialise() {
                         if(found) break;
                     }
                 }
-                Areas.calculateMissingFields();
+                Areas.calculateMissingFields(Areas.items);
             },
             //Calculates any missing fields from each area and updates the database
-            calculateMissingFields: function() {
-                var areas = Areas.items, updates = [];
+            calculateMissingFields: function(areas) {
+                var updates = [];
                 for(var a = 0, areaLength = areas.length; a < areaLength; a++) {
                     var area = areas[a];
                     var update = {}, updateNeeded = false;
@@ -1436,7 +1436,7 @@ function initialise() {
                 area.poly = AreaSplits.areaPoly;
                 area.missingBoundaries = false;
                 area.boundaries = area.points = area.poly.getPath();
-                AreaSplits.updateAreaFields(area);
+                //AreaSplits.updateAreaFields(area);
                 
                 //Add the area labels to the list of map elements
                 Areas.mapElements.push(AreaSplits.areaPoly.label);
@@ -1446,8 +1446,10 @@ function initialise() {
                 var areas = AreaSplits.sharedPoly.areas;
                 for(var i = 0; i < areas.length; i++) {
                     var item = getItemBy(Areas.items, "name", areas[i]);
-                    if(item) item.poly = AreaSplits.sharedPoly;
-                    AreaSplits.updateAreaFields(areas[i]);
+                    if(item) {
+                        item.poly = AreaSplits.sharedPoly;
+                        //AreaSplits.updateAreaFields(item);
+                    }
                 }
                 area.unit.sharedPoly = AreaSplits.sharedPoly;
                 //Prevent the onClose function from hiding the shared polygon
@@ -1497,7 +1499,10 @@ function initialise() {
                 Areas.open(AreaSplits.area);
             },
             updateAreaFields: function(area) {
-                
+                area.chapelDistance = area.size = area.centroidDistance = 0;
+                area.chapelPath = [];
+                area.centroid = [];
+                Areas.calculateMissingFields([ area ]);
             }
         }
     });
