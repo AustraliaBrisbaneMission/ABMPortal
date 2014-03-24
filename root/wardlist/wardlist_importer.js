@@ -1,6 +1,7 @@
 var settings = {
     title: "Ward List",
     ourSuburbs: [
+        /*
         "ascot",
         "hamilton",
         "clayfield",
@@ -9,6 +10,7 @@ var settings = {
         "windsor",
         "albion",
         "lutwyche"
+        */
     ]
 };
 //ascot,hamilton,clayfield,hendra,wooloowin,albion,lutwyche,windsor
@@ -65,8 +67,8 @@ function convert() {
             household.country = data["Country"] || "";
             household.phone = data["Household Phone"] || "";
             household.inArea = !!suburbRegex.exec(household.city);
-            household.status = data["Status"] || "";
-            household.notes = data["Notes"];
+            household.status = (data["STATUS"] || "").toLowerCase();
+            household.notes = data["NOTES"];
         }
         //Get age
         var birthDate = data["Birth"], age;
@@ -108,7 +110,7 @@ function convert() {
             spouseMember: { "Yes": 2, "No": 1 }[data["Spouse Member"]] || 0,
             sealedSpouse: { "Yes": 2, "No": 1 }[data["Sealed to Spouse"]] || 0,
             sealedPrior: data["Sealed to Prior"] == "Yes",
-            status: data["Status"]
+            status: (data["STATUS"] || "").toLowerCase()
         };
         household.people.push(id);
         householdIds[data["HofH ID"]] = household;
@@ -174,12 +176,12 @@ function render() {
                     'window.addEventListener("keydown", toggleHouseholds, false);',
                     //Ouputs the HTML for a household
                     'var statusClasses = {',
-                        '"A": "active",',
-                        '"LA": "inactive",',
-                        '"NI": "ni",',
-                        '"Moved": "moved",',
-                        '"RC": "convert",',
-                        '"DNV": "dnv",',
+                        '"a": "active",',
+                        '"la": "inactive",',
+                        '"ni": "ni",',
+                        '"moved": "moved",',
+                        '"rc": "convert",',
+                        '"dnv": "dnv",',
                     '};',
                     'function householdHTML(household) {',
                         'var statusClass = statusClasses[household.status] || "unknown";',
@@ -415,10 +417,10 @@ window.addEventListener("load", function(e) {
             removed = [];
             fileContents = CSV.csvToArray(e.target.result);
             if(!fileContents) {
-                error("Not a valid CSV ward list file!", 2);
+                error("Not a valid CSV ward list file!", 4);
                 return;
             }
-            success("Complete", 2);
+            success("Complete", 4);
             convert();
             renderHouseholdsList();
         };

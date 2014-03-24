@@ -7,7 +7,10 @@
     <script type="text/javascript" src="wardlist_importer.js"></script>
     <style>
 body { font-family: sans-serif; }
-#options { float: left; }
+#options {
+  float: left;
+  max-width: 50%;
+}
 #rightContainer {
   float: left;
   margin: 8px;
@@ -85,7 +88,8 @@ body { font-family: sans-serif; }
   <body>
     <div id="options">
       <h1>Ward List Importer for Phone</h1>
-      <h3>NOTE: This will only work on Nokia C2-01s...</h3>
+      <h3>NOTE: This will only work on the Nokias...</h3>
+      <h4>(not the new Samsung phones)</h4>
       <div class="step">
         <div class="stepNumber">1</div>
         <span>
@@ -95,34 +99,78 @@ body { font-family: sans-serif; }
       </div>
       <div class="step">
         <div class="stepNumber">2</div>
-        <span>Select ward directory file:</span>
-        <input type="file" accept=".csv" id="wl" />
-        <span id="status2"></span>
+        <span>
+          (OPTIONAL) Add a new column to the CSV file called
+          'STATUS' (without the quotes, all upper case) and for
+          each person, add the following text to mark their
+          status:
+        </span>
+        <table>
+          <tr><th>Status</th><th>Meaning</th></tr>
+          <tr><td>A</td><td>Active</td></tr>
+          <tr><td>LA</td><td>Less-Active</td></tr>
+          <tr><td>NI</td><td>Not Interested</td></tr>
+          <tr><td>Moved</td><td>Moved</td></tr>
+          <tr><td>RC</td><td>Recent Convert</td></tr>
+          <tr><td>DNV</td><td>Do Not Visit</td></tr>
+        </table>
       </div>
       <div class="step">
         <div class="stepNumber">3</div>
-        <span>Area Name:</span>
-        <input type="text" id="unitName" />
-        <span id="status3"></span>
+        <span>
+          (OPTIONAL) Add a new column to the CSV file called
+          'NOTES' (without the quotes, all upper case) and add
+          any notes for each household (only the notes on the
+          head of the household will be shown)
+        </span>
       </div>
       <div class="step">
         <div class="stepNumber">4</div>
+        <span>Select ward directory file:</span>
+        <input type="file" accept=".csv" id="wl" />
+        <span id="status4"></span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">5</div>
+        <span>Area Name:</span>
+        <input type="text" id="unitName" />
+        <span id="status5"></span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">6</div>
         <span>Suburbs in Your Area:</span>
         <input type="text" id="suburbs" />
-        <span id="status4"></span>
+        <span id="status6"></span>
         <div>
           (List suburbs separated by commas
           eg. Chermside, Wavell Heights, Aspley)
         </div>
       </div>
       <div class="step">
-        <div class="stepNumber">5</div>
+        <div class="stepNumber">7</div>
         <span>
           Check this list and tick any households that
           are in your area:
         </span>
-        <span id="status5"></span>
+        <span id="status7"></span>
         <div id="householdList"></div>
+      </div>
+      <div class="step">
+        <div class="stepNumber">8</div>
+        <span>Click the 'Save for Phone!' button</span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">9</div>
+        <span>
+          Copy the saved file to the phone (you will need
+          either a microSD card and card reader for the
+          computer, bluetooth on the computer or a USB
+          cable for the phone)
+        </span>
+      </div>
+      <div class="step">
+        <div class="stepNumber">10</div>
+        <span>Open the file on the phone and enjoy!</span>
       </div>
     </div>
     <div id="rightContainer">

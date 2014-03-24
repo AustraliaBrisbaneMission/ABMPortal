@@ -2576,13 +2576,3 @@ msw = (x >> 16) + (y >> 16) + (lsw >> 16);
 return (msw << 16) | (lsw & 0xFFFF);
 }
 }
-//TODO: Remove before push...
-//-----------
-server.get("/make_dl", function(req, res) {
-    Auth.setSession(req, { auth: Auth.DL });
-    res.send("You now have the authority of a DL!");
-});
-server.get("/make_zl", function(req, res) {
-    Auth.setSession(req, { auth: Auth.ZL });
-    res.send("You now have the authority of a ZL!");
-});

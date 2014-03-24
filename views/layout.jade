@@ -67,6 +67,9 @@ block body
           if auth >= 5
             li
               a(href="/config") Config
+          if auth >= 2
+            li
+              a(href="/wardlist/") Ward List for Phone
     .main-content
       block content
   footer
