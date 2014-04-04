@@ -87,6 +87,7 @@ db.db.open(function(error, database) {
         db.seniorIndicators = db.database.collection('seniorIndicators');
         db.seniorActuals = db.database.collection('seniorActuals');
         db.seniorGoals = db.database.collection('seniorGoals');
+        db.kilometers = db.database.collection('kilometers');
         areaAnalysisCollections = {
             area: db.database.collection('area'),
             chapel: db.database.collection('chapel'),
@@ -298,7 +299,7 @@ var Auth = {
                                                     });
                                                     return;
                                                 }
-                                                if(!missionary) done(true);
+                                                if(!missionary) { done(true); return; }
                                                 var auth = Auth.NORMAL;
                                                 if(adminAccess || missionary.position == "SPECIAL_ASSIGNMENT") {
                                                     auth = Auth.ADMIN;
@@ -315,13 +316,13 @@ var Auth = {
                                                 else if(missionary.position == "DISTRICT_LEADER_TRAINER" ||
                                                     missionary.position == "DISTRICT_LEADER") auth = Auth.DL;
                                                 Auth.setSession(req, {
-                                                    zone: missionary.zone,
-                                                    district: missionary.district,
-                                                    area: missionary.area,
-                                                    unit: missionary.unit,
+                                                    zone: missionary.zone, //"Logan",//
+                                                    district: missionary.district, //"Logan",//
+                                                    area: missionary.area, //"Logan 2",//
+                                                    unit: missionary.unit, //"Logan",//
                                                     position: missionary.position,
                                                     elder: missionary.elder,
-                                                    auth: auth
+                                                    auth: auth //Auth.NORMAL//
                                                 });
                                                 done(true);
                                             });
@@ -768,18 +769,18 @@ server.get('/', function (req, res) {
             });
         }
         function formatDate(date) {
-            var day = date.getDate();
-            var month = date.getMonth() + 1;
-            var year = date.getFullYear();
+            var day = date.getUTCDate();
+            var month = date.getUTCMonth() + 1;
+            var year = date.getUTCFullYear();
             return day + "/" + month + "/" + year;
         }
         var fromDate = new Date(), toDate = new Date();
         //Convert fromDate to Monday and toDate to Sunday
         toWeekStart(fromDate);
-        toDate.setUTCDate(fromDate.getDate() + 6);
+        toDate.setUTCDate(fromDate.getUTCDate() + 6);
         var thisWeek = formatDate(fromDate) + " - " + formatDate(toDate);
-        fromDate.setUTCDate(fromDate.getDate() - 7);
-        toDate.setUTCDate(toDate.getDate() - 7);
+        fromDate.setUTCDate(fromDate.getUTCDate() - 7);
+        toDate.setUTCDate(toDate.getUTCDate() - 7);
         var lastWeek = formatDate(fromDate) + " - " + formatDate(toDate);
         render(req, res, "index", {
             indicators: indicators,
@@ -2308,6 +2309,62 @@ function csvTemplate(res, collection, headings) {
     }
     cursor.next(addRecord);
 }
+
+/*server.get('/kilometers', function (req, res) {
+    if(Auth.require(req, res, Auth.ZL)) return;
+    render(req, res, "kilometers", {});
+});
+
+server.post('/kilometers/submit', function (req, res) {
+    if(Auth.require(req, res, Auth.ZL)) return;
+    var report = {
+        zone: req.session.zone,
+        date: formatDate(new Date()),
+        reportedBy: req.session.displayName,
+        cars: []
+    };
+    for(var i = 0; i < 15; i++) {
+        var car = {
+            license: req.body["license" + i],
+            km: req.body["km" + i],
+            drivers: req.body["drivers" + i],
+            areas: req.body["areas" + i]
+        };
+        if(car.license.length) report.cars.push(car);
+    }
+    function reportInserted(error, result) {
+        if(error) res.send(500, "Database error: " + error);
+        else res.send("Successfully submitted!");
+    }
+    db.kilometers.insert(report, reportInserted);
+});*/
+
+server.get('/kilometers_view', function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    var date = new Date();
+    date.setUTCMonth(date.getUTCMonth() - 1);
+    var query = {
+        $query: {
+            date: { $gt: formatDate(date) }
+        },
+        $orderby: { date: -1 } //Order by Descending Date
+    };
+    db.kilometers.find(query).toArray(function(error, result) {
+        if(error) res.send(500, "Database error: " + error);
+        else render(req, res,"kilometers_view", { reports: result });
+    });
+});
+server.get('/kilometers_archive', function(req, res) {
+    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    var query = {
+        $query: {},
+        $orderby: { date: -1 } //Order by Descending Date
+    };
+    db.kilometers.find(query).toArray(function(error, result) {
+        if(error) res.send(500, "Database error: " + error);
+        else render(req, res,"kilometers_view", { reports: result });
+    });
+});
 
 server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
     console.log("ABM Admin Website running...");

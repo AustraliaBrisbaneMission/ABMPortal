@@ -1,0 +1,21 @@
+extend layout
+
+block head
+  title View Reported Kilometers - #{siteName}
+
+block content
+  h1 Reported Kilometers
+  div
+    - for(var i = 0; i < reports.length; i++)
+        div
+          h1 Zone: #{reports[i].zone}
+          p Date: #{reports[i].date}
+          p Reported By: #{reports[i].reportedBy}
+          - for(var b = 0; b < reports[i].cars.length; b++)
+            p License Plate: #{reports[i].cars[b].license}, Kilometers: #{reports[i].cars[b].km}, Driver(s): #{reports[i].cars[b].drivers}, Area(s): #{reports[i].cars[b].areas}
+            
+  h1 Export
+  div
+    ul
+      li
+        a(href="/kilometers_view.csv") Download Kilometers for Importing into Excel (CSV)

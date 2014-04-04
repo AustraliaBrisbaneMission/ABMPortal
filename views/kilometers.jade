@@ -1,0 +1,20 @@
+extend layout
+
+block head
+  title Report Kilometers - #{siteName}
+
+block content
+  h1 Report Kilometers Form
+  form(action = "/kilometers/submit" method = "post")
+    h2 #{zone} Zone
+    - for(var i = 0; i < 15; i++)
+      div
+        span License Plate:
+        input(name="license" + i type="text")
+        span Kilometers:
+        input(name="km" + i type="text")
+        span Driver(s):
+        input(name="drivers" + i type="text")
+        span Area(s):
+        input(name="areas" + i type="text")
+    input(value = "Submit" type="submit")

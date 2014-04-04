@@ -1571,14 +1571,6 @@ function initialise() {
         container.appendChild(label);
         menu.appendChild(container);
     }
-    addSettingTitle("Visibility");
-    addSetting("areaVisible", "Show areas", true);
-    addSetting("flatVisible", "Show flats", true);
-    addSetting("chapelVisible", "Show chapels", true);
-    addSettingTitle("Labels");
-    addSetting("areaLabels", "Show area labels", true);
-    addSetting("flatLabels", "Show flat labels", false);
-    addSetting("chapelLabels", "Show chapel labels", false);
     if(User.auth >= Auth.ADMIN) {
         var help = document.createElement("SPAN");
         help.className = "helpMessage";
