@@ -466,8 +466,7 @@ var Auth = {
                                 position: position,
                                 area: area.name,
                                 district: district.name,
-                                zone: zone.name,
-                                standards: {}
+                                zone: zone.name
                             };
                         }
                     }
@@ -525,13 +524,28 @@ var Auth = {
                             console.log(error ? error : "Organisation successfully updated!");
                             var insert = [];
                             for(var id in missionaryRecords) insert.push(missionaryRecords[id]);
-                            db.missionary.remove(function(error, result) {
-                                if(error) { console.log(error); return; }
-                                db.missionary.insert(insert, function(error, result) {
-                                    console.log(error ? error : "Missionaries successfully updated!");
+                            var index = 0;
+                            function updateLoop(error, result) {
+                                if(error) { console.log(error); callback(false); }
+                                else if(++index < insert.length) {
+                                    var query = { id: insert[index].id };
+                                    var update = {
+                                        $set: insert[index],
+                                        $setOnInsert: { standards: {} }
+                                    };
+                                    db.missionary.update(query, update, { upsert: true }, updateLoop);
+                                }
+                                else {
+                                    console.log("Missionaries successfully updated!");
                                     callback(true);
-                                });
-                            });
+                                }
+                            }
+                            var query = { id: insert[index].id };
+                            var update = {
+                                $set: insert[index],
+                                $setOnInsert: { standards: {} }
+                            };
+                            db.missionary.update(query, update, { upsert: true }, updateLoop);
                         });
                     });
                 });
