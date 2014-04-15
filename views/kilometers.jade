@@ -7,12 +7,14 @@ block content
   h1 Report Kilometers Form
   form(action = "/kilometers/submit" method = "post")
     h2 #{zone} Zone
+      div
+        span NOTE: For all vehicles in the Zone input ALL four fields
     - for(var i = 0; i < 15; i++)
       div
         span License Plate:
         input(name="license" + i type="text")
         span Kilometers:
-        input(name="km" + i type="text")
+        input(name="km" + i type="number")
         span Driver(s):
         input(name="drivers" + i type="text")
         span Area(s):

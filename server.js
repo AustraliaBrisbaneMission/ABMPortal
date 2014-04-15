@@ -2324,7 +2324,7 @@ function csvTemplate(res, collection, headings) {
     cursor.next(addRecord);
 }
 
-/*server.get('/kilometers', function (req, res) {
+server.get('/kilometers', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "kilometers", {});
 });
@@ -2344,17 +2344,17 @@ server.post('/kilometers/submit', function (req, res) {
             drivers: req.body["drivers" + i],
             areas: req.body["areas" + i]
         };
-        if(car.license.length) report.cars.push(car);
+        if(car.license.length && car.km.length && car.drivers.length && car.areas.length) report.cars.push(car);
     }
     function reportInserted(error, result) {
         if(error) res.send(500, "Database error: " + error);
         else res.send("Successfully submitted!");
     }
     db.kilometers.insert(report, reportInserted);
-});*/
+});
 
 server.get('/kilometers_view', function(req, res) {
-    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    if(Auth.require(req, res, Auth.OTHER, true)) return;
     var date = new Date();
     date.setUTCMonth(date.getUTCMonth() - 1);
     var query = {
@@ -2368,15 +2368,46 @@ server.get('/kilometers_view', function(req, res) {
         else render(req, res,"kilometers_view", { reports: result });
     });
 });
+server.get('/kilometers_view/kilometers_view.csv', function(req, res){
+    if(Auth.require(req, res, Auth.OTHER, true)) return;
+    var date = new Date();
+    date.setUTCDate(0); //current month only
+    var query = {
+        $query: {
+            date: { $gt: formatDate(date) }
+        },
+        $orderby: { zone: 1 }
+    };
+    db.kilometers.find(query).toArray(function(error, dbItems) {
+        var rows = [ [ "Zone", "Areas", "Drivers", "Number Plate", "KMs", "Date", "Reported By", ] ]; //Heading
+        for(var i = 0; i < dbItems.length; i++) {
+            var item = dbItems[i]; // A single Zone object (report)
+            var cars = item.cars;
+            cars.sort(function(a, b) {
+                if(a.license > b.license) return 1;
+                if(a.license < b.license) return -1;
+                return 0;
+            });
+            for(var x = 0; x < cars.length; x++) {
+                var car = cars[x]; // A single vehicle in the Zone
+                //[ "Zone", "Areas", "Drivers", "Number Plate", "KMs", "Date", "Reported By", ]
+                rows.push([ item.zone, car.areas, car.drivers, car.license, car.km, item.date, item.reportedBy]);
+            }
+            //rows.push(["----------------------"]);
+        }
+        res.set("Content-Type", "text/csv");
+        res.send(csv.arrayToCsv(rows));
+    });
+});
 server.get('/kilometers_archive', function(req, res) {
-    if(Auth.require(req, res, Auth.NORMAL, true)) return;
+    if(Auth.require(req, res, Auth.OTHER, true)) return;
     var query = {
         $query: {},
         $orderby: { date: -1 } //Order by Descending Date
     };
     db.kilometers.find(query).toArray(function(error, result) {
         if(error) res.send(500, "Database error: " + error);
-        else render(req, res,"kilometers_view", { reports: result });
+        else render(req, res,"kilometers_archive_view", { reports: result });
     });
 });
 
