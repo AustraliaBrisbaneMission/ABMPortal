@@ -34,7 +34,8 @@ function render(filter) {
         div.hidden = true;
         title.addEventListener("mousedown", clicked, false);
     }
-    keySort(data, "date", function(date, items) {
+    //keySort(data, "date", function(date, items) {
+        /*
         var title = document.createElement('H2');
         var days = [
             "Sunday",
@@ -65,10 +66,11 @@ function render(filter) {
         var year = date.getFullYear();
         title.textContent = day + ", " + month + " " + date.getDate() + ", " + year;
         resultBox.appendChild(title);
+        */
         var dateDiv = document.createElement('DIV');
         dateDiv.className = "rDate";
         resultBox.appendChild(dateDiv);
-        keySort(items, "zone", function(zone, items) {
+        keySort(data, "zone", function(zone, items) {
             var title = document.createElement('H3');
             title.textContent = zone;
             dateDiv.appendChild(title);
@@ -108,7 +110,7 @@ function render(filter) {
                 });
             });
         });
-    }, true);
+    //}, true);
 }
 
 window.on("load", function() {

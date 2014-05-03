@@ -316,13 +316,13 @@ var Auth = {
                                                 else if(missionary.position == "DISTRICT_LEADER_TRAINER" ||
                                                     missionary.position == "DISTRICT_LEADER") auth = Auth.DL;
                                                 Auth.setSession(req, {
-                                                    zone: missionary.zone, //"Logan",//
-                                                    district: missionary.district, //"Logan",//
-                                                    area: missionary.area, //"Logan 2",//
-                                                    unit: missionary.unit, //"Logan",//
-                                                    position: missionary.position,
-                                                    elder: missionary.elder,
-                                                    auth: auth //Auth.NORMAL//
+                                                    zone: "Brisbane",//missionary.zone, //"Logan",//
+                                                    district: "Brisbane",//missionary.district, //"Logan",//
+                                                    area: "Office Elders",//missionary.area, //"Logan 2",//
+                                                    unit: "Chermside",//missionary.unit, //"Logan",//
+                                                    position: "ZONE_LEADER",//missionary.position,
+                                                    elder: true,//missionary.elder,
+                                                    auth: Auth.ADMIN//auth //Auth.NORMAL//
                                                 });
                                                 done(true);
                                             });
@@ -1439,6 +1439,19 @@ server.get('/recommendations', function (req, res) {
         zoneLeader: req.session.sso ? req.session.displayName : ""
     });
 });
+server.get('/recommendations/get_missionaries', function (req, res) {
+    if(Auth.require(req, res, Auth.ZL)) return;
+    db.missionary.find().toArray(function(error, items) {
+        var areaNames = {}, areas = [];
+        for(var i = 0; i < items.length; i++) {
+            var missionary = items[i];
+            if((req.session.position == "ZONE_LEADER" || req.session.position == "ZONE_LEADER_LEAD") && missionary.zone != req.session.zone) continue;
+            if(!areaNames[missionary.area]) areaNames[missionary.area] = areas[areas.length] = [ missionary.area, missionary.zone ];
+            areaNames[missionary.area].push((missionary.elder ? "Elder " : "Sister ") + missionary.fullName);
+        }
+        res.send({ all: req.session.position != "ZONE_LEADER" && req.session.position != "ZONE_LEADER_LEAD", areas: areas });
+    });
+});
 server.get('/recommendations/success', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "recommendations_success", {});
@@ -1452,7 +1465,7 @@ server.post("/recommendations/submit", function(req, res) {
         data.push({
             date: formatDate(new Date()),
             zoneLeader: zoneLeader,
-            zone: zone,
+            zone: req.body[i].zone,
             area: req.body[i].area,
             name: req.body[i].name,
             transfersInArea: req.body[i].tIn,

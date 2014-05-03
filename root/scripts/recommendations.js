@@ -1,10 +1,49 @@
 var ids = [], slideSpeed = 200;
 
-function addArea() {
+var allAreas = [];
+window.addEventListener("load", function(e) {
+    $.get("/recommendations/get_missionaries", function(response) {
+        var areas = response.areas;
+        if(response.all) {
+            areas.sort(function(a, b) {
+                if(a[0] > b[0]) return 1;
+                if(a[0] < b[0]) return -1;
+                return 0;
+            });
+            allAreas = areas;
+            var select = document.getElementById("newArea");
+            select.addEventListener("change", openArea, false);
+            for(var i = 0; i < areas.length; i++) {
+                var option = document.createElement("OPTION");
+                option.value = i;
+                option.textContent = areas[i][0];
+                select.appendChild(option);
+            }
+        }
+        else for(var i = 0; i < areas.length; i++) {
+            var area = areas[i];
+            var index = ids.length;
+            addArea(area[0], area[1]);
+            for(var b = 2; b < area.length; b++) addMissionary(index, area[b]);
+        }
+    });
+}, false);
+
+function openArea(e) {
+    var parts = allAreas[this.value];
+    var index = ids.length;
+    addArea(parts[0], parts[1]);
+    for(var i = 2; i < parts.length; i++) addMissionary(index, parts[i]);
+    this.value = "";
+}
+
+function addArea(name, zone) {
+    name = name || "";
+    zone = zone || "";
     var area = document.createElement("DIV");
-    area.innerHTML = '<div class="area" id="areabox' + ids.length + '"><span>Area:</span><input type="text" id="area' + ids.length + '" />' +
+    area.innerHTML = '<div class="area" id="areabox' + ids.length + '"><span>Area:</span><input type="text" value="' + name + '" id="area' + ids.length + '" />' +
         '<input type="button" value="Remove Area" onclick="removeArea(' + ids.length + ')" class="right" />' +
-        '<div id="missionaries' + ids.length + '"></div>' +
+        '<input type="hidden" value="' + zone + '" id="zone' + ids.length + '" /><div id="missionaries' + ids.length + '"></div>' +
         '<div><input type="button" value="Add Missionary" onclick="addMissionary(' + ids.length + ')" /></div></div>';
     area.style.display = "none";
     area.id = "a" + ids.length;
@@ -13,14 +52,15 @@ function addArea() {
     ids.push("area");
 }
 
-function addMissionary(index) {
+function addMissionary(index, name, zone) {
+    name = name || "";
     var missionary = document.createElement("DIV");
     missionary.area = index;
     missionary.id = "missionary" + ids.length;
     missionary.className = "missionary";
     missionary.innerHTML = [
         '<div>',
-            '<span>Missionary:</span><input type="text" name="rName' + ids.length + '" />',
+            '<span>Missionary:</span><input type="text" value="' + name + '" name="rName' + ids.length + '" />',
             '<span>Number of transfers in area:</span><input type="text" name="rIn' + ids.length + '" class="number_input" />',
             '<span>Number of transfers left:</span><input type="text" name="rLeft' + ids.length + '" class="number_input" />',
             '<label for="stay' + ids.length + '">Stay</label>',
@@ -80,8 +120,9 @@ function submitRecommendation() {
             areas.push(document.getElementById('area' + a).value);
         }
         else if(ids[a] == "missionary") {
-            area = document.getElementById('missionary' + a).area;
-            area = document.getElementById('area' + area).areaNumber;
+            var areaNumber = document.getElementById('missionary' + a).area;
+            area = document.getElementById('area' + areaNumber).areaNumber;
+            var missionaryZone = document.getElementById('zone' + areaNumber).value;
             leadership = [];
             elements = document.getElementsByName('rLeadership' + a);
             for(var b = 0; b < elements.length; b++) {
@@ -92,7 +133,7 @@ function submitRecommendation() {
             else if(elements[1].checked) stay = "Go";
             else stay = "";
             recommendations.push({
-                zone: zone,
+                zone: missionaryZone || zone,
                 zoneLeader: zoneLeader,
                 area: areas[area],
                 name: document.getElementsByName('rName' + a)[0].value,

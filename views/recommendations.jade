@@ -14,13 +14,23 @@ block content
       To be discussed by <strong>both</strong> zone leaders then filled out separately.
       It should be submitted by the end of week 4.
   form#recommendations
+    //Report information at top
     div
       span #{elder ? "" : "Sister"} Zone:
       input(type="text" name="zone" value=(position == "SISTER_TRAINING_LEADER" ? unit : zone) || username)
       span #{elder ? "Zone" : "Sister Training"} Leader:
       input(type="text" name="zone_leader" value=(sso ? displayName : ""))
-    div
-      div#areas
-      input(type="button" value="Add Area" onclick="addArea()")
+    
+    div#areas
+    
+    //STL area selection
+    if position != "ZONE_LEADER" && position != "ZONE_LEADER_LEAD"
+      div
+        span Add area:
+        select#newArea
+          option(value="") Add Area...
+    
+    input(type="button" value="Create Area" onclick="addArea()")
+    //Submit button
     div
       input#submit_button(type="button" value="Submit Recommendations" onclick="submitRecommendation()")
