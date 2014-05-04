@@ -316,13 +316,13 @@ var Auth = {
                                                 else if(missionary.position == "DISTRICT_LEADER_TRAINER" ||
                                                     missionary.position == "DISTRICT_LEADER") auth = Auth.DL;
                                                 Auth.setSession(req, {
-                                                    zone: "Brisbane",//missionary.zone, //"Logan",//
-                                                    district: "Brisbane",//missionary.district, //"Logan",//
-                                                    area: "Office Elders",//missionary.area, //"Logan 2",//
-                                                    unit: "Chermside",//missionary.unit, //"Logan",//
-                                                    position: "ZONE_LEADER",//missionary.position,
-                                                    elder: true,//missionary.elder,
-                                                    auth: Auth.ADMIN//auth //Auth.NORMAL//
+                                                    zone: missionary.zone, //"Logan",//
+                                                    district: missionary.district, //"Logan",//
+                                                    area: missionary.area, //"Logan 2",//
+                                                    unit: missionary.unit, //"Logan",//
+                                                    position: missionary.position,
+                                                    elder: missionary.elder,
+                                                    auth: auth //Auth.NORMAL//
                                                 });
                                                 done(true);
                                             });
