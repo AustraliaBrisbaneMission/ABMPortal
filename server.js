@@ -238,7 +238,7 @@ var Auth = {
                                 fullName: username
                             });
                             //Get missionary information
-                            Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-assignment", function(result) {
+                            Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-assignment/", function(result) {
                                 if(result.asgLocName == Config.mission.name) {
                                     Auth.setSession(req, {
                                         missionary: true,
@@ -254,7 +254,7 @@ var Auth = {
                                         var query = { fullName: req.session.fullName };
                                         db.missionary.findOne(query, function(error, missionary) {
                                             if(error) { console.log(error); return; }
-                                            Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/", function(result) {
+                                            Auth.sso(req, "https://missionary.lds.org/mcore-ws/Services/rest/missionary-portal-authz-status/undefined", function(result) {
                                                 //If they're a senior missionary
                                                 if(result && result.senior) {
                                                     Auth.setSession(req, {
