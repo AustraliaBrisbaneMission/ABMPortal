@@ -312,7 +312,8 @@ var Auth = {
                                                 else if(missionary.position == "ASSISTANT") auth = Auth.ADMIN;
                                                 else if(missionary.position == "ZONE_LEADER_LEAD" ||
                                                     missionary.position == "ZONE_LEADER" ||
-                                                    missionary.position == "SISTER_TRAINING_LEADER") auth = Auth.ZL;
+                                                    missionary.position == "SISTER_TRAINING_LEADER" ||
+                                                    missionary.position == "SISTER_TRAINING_LEADER_LEAD") auth = Auth.ZL;
                                                 else if(missionary.position == "DISTRICT_LEADER_TRAINER" ||
                                                     missionary.position == "DISTRICT_LEADER") auth = Auth.DL;
                                                 Auth.setSession(req, {
@@ -389,6 +390,7 @@ var Auth = {
                 "DISTRICT_LEADER",
                 "DISTRICT_LEADER_TRAINER",
                 "SISTER_TRAINING_LEADER",
+                "SISTER_TRAINING_LEADER_LEAD",
                 "ZONE_LEADER",
                 "ZONE_LEADER_LEAD",
                 "ASSISTANT"
@@ -522,30 +524,43 @@ var Auth = {
                         if(error) { console.log(error); return; }
                         db.area.insert(insert, function(error, result) {
                             console.log(error ? error : "Organisation successfully updated!");
-                            var insert = [];
-                            for(var id in missionaryRecords) insert.push(missionaryRecords[id]);
-                            var index = 0;
-                            function updateLoop(error, result) {
-                                if(error) { console.log(error); callback(false); }
-                                else if(++index < insert.length) {
-                                    var query = { id: insert[index].id };
-                                    var update = {
-                                        $set: insert[index],
-                                        $setOnInsert: { standards: {} }
-                                    };
-                                    db.missionary.update(query, update, { upsert: true }, updateLoop);
+                            //Compare the found missionaries with the missionaries already in the
+                            //database so we know who we need to remove
+                            db.missionary.find().toArray(function(error, items) {
+                                if(error) { console.log(error); return; }
+                                var oldMissionaries = {};
+                                for(var i = 0; i < items.length; i++) {
+                                    oldMissionaries[items[i].id] = true;
                                 }
-                                else {
-                                    console.log("Missionaries successfully updated!");
-                                    callback(true);
+                                var insertMissionaries = [];
+                                for(var id in missionaryRecords) {
+                                    insertMissionaries.push(missionaryRecords[id]);
+                                    //Remove the missionary from the deletion list
+                                    delete oldMissionaries[id];
                                 }
-                            }
-                            var query = { id: insert[index].id };
-                            var update = {
-                                $set: insert[index],
-                                $setOnInsert: { standards: {} }
-                            };
-                            db.missionary.update(query, update, { upsert: true }, updateLoop);
+                                var index = -1;
+                                function updateLoop(error, result) {
+                                    if(error) { console.log(error); callback(false); }
+                                    else if(++index < insertMissionaries.length) {
+                                        var query = { id: insertMissionaries[index].id };
+                                        var update = {
+                                            $set: insertMissionaries[index],
+                                            $setOnInsert: { standards: {} }
+                                        };
+                                        db.missionary.update(query, update, { upsert: true }, updateLoop);
+                                    }
+                                    else {
+                                        console.log("Missionaries successfully updated!");
+                                        callback(true);
+                                    }
+                                }
+                                //Remove the remaining missionaries who are not in the mission organisation anymore
+                                var or = [];
+                                for(var id in oldMissionaries) {
+                                    or.push({ id: id });
+                                }
+                                db.missionary.remove({ $or: or }, updateLoop);
+                            });
                         });
                     });
                 });
@@ -1435,7 +1450,9 @@ server.get('/historical_data', function (req, res) {
 server.get('/recommendations', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "recommendations", {
-        zoneName: (req.session.position == "SISTER_TRAINING_LEADER" ? req.session.unit : req.session.zone) || req.session.username,
+        zoneName: (req.session.position == "SISTER_TRAINING_LEADER" ? req.session.unit : req.session.zone) || 
+        (req.session.position == "SISTER_TRAINING_LEADER_LEAD" ? req.session.unit : req.session.zone) || 
+        req.session.username,  
         zoneLeader: req.session.sso ? req.session.displayName : ""
     });
 });

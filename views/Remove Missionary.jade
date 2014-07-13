@@ -1,0 +1,15 @@
+extend layout
+
+block head
+    title Remove Missionary - #{sitename}
+    
+block content
+    h1 Input Missionary to be removed
+    //form(action = "/removeMissionary/submit" method = "post")
+        div
+        span You must input the FULL name of the missionary to be removed in the following format: Last Name, First and Middle names (E.G. Smith, John Michael).
+    -   for (int i = 0, i < 30, i++)
+        div
+            span Name:
+            input(name="fullName"+i type="text")
+            
