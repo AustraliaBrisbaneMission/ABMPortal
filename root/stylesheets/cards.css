@@ -1,0 +1,121 @@
+label {
+    width:55px;
+    display:inline-block;
+}
+
+div {
+    margin-top:0.5em;
+}
+
+#informationDiv, input {
+    display:inline-block;
+    margin-bottom:2.5px;
+}
+
+#informationDiv{
+    margin-bottom:2.5px;
+}
+
+fieldset {
+    /*Layout settings, padding/margin goes... up right bottom left.*/
+    display: block;
+    margin:0px 2px 0.5em 2px;
+    padding:0.35em 0.75em 0.625em 0.75em;
+    /*Border settings*/
+    border:1px solid #999;
+    border-radius:8px;
+    box-shadow:0 0 10px #999;
+}
+legend {
+    background:#eee;
+}
+#cardPreview{
+    height:237px;
+    width:734px;
+    margin-bottom:2em;
+    overflow:hidden;
+    font-family: "Times New Roman", Times, serif;
+    color:black;
+}
+#valueCard{
+    border:1px groove black;
+    background-color:white;
+    display:inline-block;
+    width:364px;
+    height:214px;
+    margin-top:0;
+    vertical-align:top;
+}
+
+/*The title of the church displayed on card*/
+#title{
+    font-family:'Trajan Pro', Fallback, serif;
+    text-align:center;
+}
+#title1{
+    margin:7px 0 0 0;
+}
+#title2{
+    margin:2px 0 -2px 0;
+    font-size:30px;
+}
+
+/*The name of the missionary*/
+p.name {
+    text-align: center;
+    font-family: Cambria, Georgia, serif;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    margin-top:10px;
+    height:15px;
+}
+
+/*The home address of the missionary*/
+#cardAddress{
+    font-size: 11px;
+    font-family: Cambria, Georgia, serif;
+    margin-left: 1em;
+    margin-top: 0;
+    display: inline-block;
+    width:156px;
+}
+
+/*The mission address*/
+#missionAddress {
+    vertical-align:top;
+    font-size: 12px;
+    font-family: Cambria, Georgia, serif;
+    margin: 0 0 0 26px;
+    display: inline-block;
+}
+/*Bold and normal font settings*/
+p.bold{
+    font-weight:bold;
+    margin:0 0 0 0;
+}
+
+p.normal{
+    margin:2px 0 2px 0;
+}
+
+/* Reset line height*/
+p{
+    line-height:1.1;
+}
+
+/*Settings for the mormon.org image*/
+#imgLink{
+    margin-top: 14px;
+    margin-bottom: -10px;
+}
+
+#cardBack{
+    vertical-align:top;
+}
+
+/* Adding the Trajan Pro font to the website for Elder Pugh's cards. */
+@font-face {
+    font-family:'Trajan Pro';
+    src: url('/../fonts/trajanpro.ttf') format('truetype');
+}

@@ -1,0 +1,9 @@
+extend layout
+
+block head
+    title Remove Missionary - #{siteName}
+    
+block content
+    script.
+        alert(db.missionaries.find().toString());
+        

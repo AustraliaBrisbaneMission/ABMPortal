@@ -2,71 +2,74 @@ extend layout
 
 block head
   title Order Cards - #{siteName}
+  link(rel='stylesheet' href='/stylesheets/cards.css')
 
 block content
-  h1 Card Order Form
+  h1 Card Order
   span.message #{message}
-  div
-    img(src="stylesheets/images/cards.png" alt="Example (Not to scale)")
-  a(href="stylesheets/images/Missionary Contact Card Brief and Order form.pdf") Click here for more information about the cards...
+  div#cardPreview
+    div#valueCard
+      div#title
+        p#title1 THE CHURCH OF
+        p#title2 JESUS CHRIST
+        p#title1 OF LATTER-DAY SAINTS
+      div#name
+        p#cName(class="name") Elder Nephi Pugh
+      div#cardAddress
+        p(class="bold") Home Address
+        p#cAd1(class="normal") 118 Osborne Road
+        p#cAd2(class="normal") Brisbane, QLD, 4053 
+        p#cAd3(class="normal") Australia
+        p(class="bold") Email:
+        p#cAd4(class="normal") nephi.pugh@bscanned.com.au
+      div#missionAddress
+        p(class="bold") Australia Brisbane Mission
+        p(class="normal") PO Box 348
+        p(class="normal") Brisbane, QLD, 4007 Australia
+        img#imgLink(src="stylesheets/images/cards3.png" alt="mormon.org | lds.org")
+    img#cardBack(src="stylesheets/images/cards.png" alt="Example (Not to scale)")
+    br
+    a(href="stylesheets/images/Missionary Contact Card Brief and Order form.pdf") Click here for more information about the cards...
   form(method="POST" action="/cards")
     div
-      h2 Number of Packs
-      span Cost will be deducted from your allotment. (1 Pack = $#{price})
-      br
-      input#packCount(type="text" name="packs" value="#{values.packs}" disabled=success)
-      span#totalCost
-    div
-      h2 Missionary Contact Card Holder
-      span Slim black box that holds 20 business cards. (1 Holder = $#{holderPrice})
-      br
-      input#holderCount(type="text" name="holders" value="#{values.holders}" disabled=success)
-    div
-      h2 NAME
-      h3 [ELDER or SISTER][FIRST NAME][LAST NAME]
-      span Total of 35 Characters (including spaces)
-      br
-      input.cardOrder(type="text" name="name" maxlength="35" value="#{values.name}" disabled=success)
-    div
-      h2 HOME ADDRESS BLOCK
-      h3 Line 1: [STREET ADDRESS]
-      span Total of 26 spaces (including spaces & symbols (;,.-/))
-      br
-      input.cardOrder(type="text" name="address1" maxlength="26" value="#{values.address1}" disabled=success)
-      h3 Line 2: [CITY][STATE] (as QLD not Queensland) [POSTCODE]
-      span Total of 26 spaces (including spaces & symbols (;,.-/))
-      br
-      input.cardOrder(type="text" name="address2" maxlength="26" value="#{values.address2}" disabled=success)
-      h3 Line 3: [COUNTRY]
-      span Total of 26 spaces (including spaces & symbols (;,.-/))
-      br
-      input.cardOrder(type="text" name="address3" maxlength="26" value="#{values.address3}" disabled=success)
-    div
-      h2 EMAIL
-      h3 (HOME or MISSION)
-      span Total of 30 Characters (including symbols)
-      br
-      input.cardOrder(type="text" name="email" maxlength="30" value="#{values.email}" disabled=success)
+      fieldset
+        legend Your Purchase
+        div#purchaseDiv
+            label(for="packs") Packs
+            input#packCount(type="number" name="packs" value="#{values.packs}" min="0" max="99" disabled=success onchange="priceChange()")
+            br
+            label(for="holders") Holders
+            input#holderCount(type="number" name="holders" value="#{values.holders}" min="0" max="99" disabled=success onchange="priceChange()")
+      fieldset
+        legend Prices & Cost
+        label(for="packPrice") Packs
+        input#packPrice(type="text" value="$5.50" disabled="true")
+        br
+        label(for="holderPrice") Holders
+        input#holderPrice(type="text" value="$0.00" disabled="true")
+        br
+        label(for="totalCost") Total
+        input#totalCost(type="text" value="$5.50" disabled="true")
+      fieldset
+        legend Your information
+        div#informationDiv
+          input#fName.cardOrder(oninput="informationChange('fName','cName')" title="Title - First Name - Last Name" type="text" onMouseOver ="" name="name" maxlength="35" value="#{values.name}" disabled=success placeholder="Elder Nephi Pugh")
+          input#fAd1.cardOrder(oninput="informationChange('fAd1','cAd1')" title="Street name" type="text" name="address1" maxlength="26" value="#{values.address1}" disabled=success placeholder="118 Osborne Road")
+          input#fAd2.cardOrder(oninput="informationChange('fAd2','cAd2')" title="City - State - Postcode" type="text" name="address2" maxlength="26" value="#{values.address2}" disabled=success placeholder="Brisbane, QLD, 4053")
+          input#fAd3.cardOrder(oninput="informationChange('fAd3','cAd3')" title="Country" type="text" name="address3" maxlength="26" value="#{values.address3}" disabled=success placeholder="Australia")
+          input#fAd4.cardOrder(oninput="informationChange('fAd4','cAd4')" title="Email address" type="text" name="email" maxlength="30" value="#{values.email}" disabled=success placeholder="nephi.pugh@bscanned.com.au")
     div
       input(type="submit" value="Order Cards" disabled=success)
-    script.
-      var price = #{price}, packCount = document.getElementById('packCount');
-      function costChanged() {
-          var packCost = #{price} * parseInt(packCount.value);
-          var holderCost = #{holderPrice} * parseInt(holderCount.value);
-          if(cost == "NaN") {
-              packCount.value = 1;
-              costChanged();
-          }
-          else if(holderCost == "NaN") {
-              holderCount.value = 1;
-              costChanged();
-          }
-          else {
-              var cost = (packCost + holderCost).toFixed(2);
-              document.getElementById('totalCost').textContent = " = $" + cost;
-          }
-      }
-      packCount.addEventListener('change', costChanged, false);
-      holderCount.addEventListener('change', costChanged, false);
-      costChanged();
+      
+    // Function that keeps track of prices.
+   script.
+    function priceChange() {
+      var packs = document.getElementById('packCount').value, holders = document.getElementById('holderCount').value;
+      document.getElementById('totalCost').value = "$" + ((packs * 5.50) + (holders * 3.20)).toFixed(2);
+      document.getElementById('packPrice').value = "$" + (packs * 5.50).toFixed(2);
+      document.getElementById('holderPrice').value = "$" + (holders * 3.20).toFixed(2);
+    }
+    function informationChange(formID, cardID) {
+      var newInformation = document.getElementById(formID).value;
+      document.getElementById(cardID).innerHTML = newInformation;
+    }

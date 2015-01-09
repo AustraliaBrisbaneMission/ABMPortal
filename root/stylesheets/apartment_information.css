@@ -1,0 +1,110 @@
+table {
+    width:100%;
+     /* Border settings */
+    border:1px solid #999;
+    border-radius:8px;
+    box-shadow:0 0 10px #999;
+}
+th, td {
+    padding: 5px;
+    text-align: left;
+}
+table tr:nth-child(even) {
+    background-color: #eee;
+}
+table tr:nth-child(odd) {
+   background-color:#fff;
+}
+table th {
+    background:#dee;
+     /*Border settings*/
+    border-bottom:1px solid #999;
+}
+
+#delete{
+    /* Set low width */
+    width:8px;
+}
+
+table tr td a, table tr th a{
+    /* I want the links to be blue & bold */
+    text-decoration:none;
+    /* font-weight:bold; */
+    cursor:pointer;
+}
+
+/* EDIT FORM CSS */
+
+label{
+    display:inline-block;
+    width:20%;
+}
+
+#editForm div{
+    width:100%;
+    display:inline-block;
+    vertical-align:top;
+}
+
+#editForm div div{
+    width:30%;
+}
+
+input[type=text]:focus {
+    border: 1px solid #a8c9e4;
+    box-shadow: inset 0 1.5px 3px rgba(190, 190, 190, .4), 0 0 0 5px #e6f2f9;
+}
+
+input[type=text]{
+    width:30%;
+}
+
+#apartment_edit{
+    /* DIV padding */
+    padding:0px 0px 15px 0px;
+}
+
+/* ACCORDION SETUP*/
+
+/*----- Accordion -----*/
+.accordion, .accordion * {
+    -webkit-box-sizing:border-box; 
+    -moz-box-sizing:border-box; 
+    box-sizing:border-box;
+}
+ 
+.accordion {
+    overflow:hidden;
+    box-shadow:0px 1px 3px rgba(0,0,0,0.25);
+    border-radius:3px;
+    background:#f7f7f7;
+}
+ 
+/*----- Section Titles -----*/
+.accordion-section-title {
+    width:100%;
+    padding:10px;
+    display:inline-block;
+    border:1px groove #dee;
+    background:#eef;
+    transition:all linear 0.15s;
+    /* Type */
+    text-decoration:none;
+    font-size:1.200em;
+    text-shadow: 1px 0px 0px #1a1a1a;
+    color:#444;
+}
+ 
+.accordion-section-title.active, .accordion-section-title:hover {
+    background:#cdf;
+}
+ 
+.accordion-section:last-child .accordion-section-title {
+    border-bottom:none;
+}
+ 
+/*----- Section Content -----*/
+.accordion-section-content {
+    padding:15px;
+    display:none;
+}

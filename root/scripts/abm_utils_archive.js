@@ -6,7 +6,6 @@
 // Notes:
 // Not really sure what to think of this. It works, obviously. But there's no substantial documentation or anything to go by.
 // Backed up and ready to edit.
-////////////////////////////////
 
 
 //Utility Functions

@@ -1289,6 +1289,9 @@ $(window).load(function() {
                 id: id,
                 rank: rank
             });
+            
+            // For some reason this doesn't work
+            console.log("if(rank.rank > area.rank) area.rank = rank.rank; error!");
             if(rank.rank > area.rank) area.rank = rank.rank;
             if(rank.rank > district.rank) district.rank = rank.rank;
         }
@@ -1300,6 +1303,7 @@ $(window).load(function() {
             zone = zones[zoneNames[key]];
             html += '<tr></tr><tr><td class="zone" colspan="4">' + zoneNames[key] + '</th></tr>';
             var districtRanks = [];
+            // For some reason this crashes.
             for(var districtName in zone.districts) {
                 districtRanks.push({ name: districtName, rank: zone.districts[districtName].rank });
             }
