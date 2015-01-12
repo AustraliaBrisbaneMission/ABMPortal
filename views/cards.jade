@@ -3,6 +3,7 @@ extend layout
 block head
   title Order Cards - #{siteName}
   link(rel='stylesheet' href='/stylesheets/cards.css')
+  script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
 
 block content
   h1 Card Order
@@ -73,3 +74,7 @@ block content
       var newInformation = document.getElementById(formID).value;
       document.getElementById(cardID).innerHTML = newInformation;
     }
+    
+    $(document).ready(function(){
+      informationChange('fName', 'cName');
+    });

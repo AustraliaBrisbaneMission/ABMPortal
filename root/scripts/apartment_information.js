@@ -115,7 +115,7 @@ function FetchApartment( id, name ){
         $('#payeeMailingAddress').val(Payee_Info['mailingAddress']);
         $('#payeeContactName').val(Payee_Info['contactName']);
         $('#payeeContactPhone').val(Payee_Info['contactPhone']);
-        $('#payeeAddress').val(Payee_Info['address']);
+        $('#payeeEmailAddress').val(Payee_Info['address']);
         $('#payeeVendorNumber').val(Payee_Info['vendorNumber']);
         
         // Utilities
@@ -204,7 +204,7 @@ function FetchApartment( id, name ){
                 mailingAddress: $('#payeeMailingAddress').val(),
                 contactName:    $('#payeeContactName').val(),
                 contactPhone:   $('#payeeContactPhone').val(),
-                address:        $('#payeeAddress').val(),
+                address:        $('#payeeEmailAddress').val(),
                 vendorNumber:   $('#payeeVendorNumber').val()
             });
             updateAccordion();
