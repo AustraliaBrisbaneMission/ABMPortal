@@ -74,7 +74,7 @@ function render(data) {
                             // Insert heading for each section of the standards.
                             var parsedStandard = standard;
                             var heading = standard.split(':')[0];
-                            if(standard.split(':').length >= 1){
+                            if(standard.indexOf(':') !== -1){
                                 parsedStandard = standard.split(':')[1].trim();
                                 if( heading != parserHeading ){
                                     parserHeading = heading;
