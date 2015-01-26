@@ -1,0 +1,14 @@
+/* Make the images and the tables fit in the same table as per the request of Elder Pinegar!
+ @author Elder Gústafsson
+*/
+
+img{
+    margin-top: 30px;
+    display:inline-block;
+    vertical-align:top;
+}
+table{
+    display:inline-block;
+    vertical-align:top;
+    min-height:560px;
+}

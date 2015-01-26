@@ -1188,7 +1188,7 @@ server.get('/forms', function(req, res) {
 });
 
 function getStandards(callback) {
-    db.standards.find().toArray(function(error, items) {
+    db.standards.find().sort({name: -1}).toArray(function(error, items) {
         if(error) {console.log(error); if(callback) callback(); return;}
         Config.standards = {elder: {}, sister: {}};
         for(var i = 0; i < items.length; i++) {
@@ -1202,14 +1202,17 @@ function getStandards(callback) {
    });
 }
 server.get('/standards', function (req, res) {
-    if(Auth.require(req, res, Auth.DL)) return;
+    if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "standards", {});
 });
 server.get('/standards/get', function (req, res) {
-    if(Auth.require(req, res, Auth.DL)) return;
+    if(Auth.require(req, res, Auth.ZL)) return;
+    getStandards();
     var query = {};
-    if(req.session.auth == Auth.DL) query = {district: req.session.district};
-    else if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
+    // District Leaders will not be allowed to view or edit this for now.
+    // if(req.session.auth == Auth.DL) query = {district: req.session.district};
+    // else if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
+    if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
     db.missionary.find(query).toArray(function(error, items) {
         var zones = {};
         for(var i = 0; i < items.length; i++) {

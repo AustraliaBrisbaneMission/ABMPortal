@@ -1,3 +1,5 @@
+// Author: Elder Jack Field
+
 function clicked(e) {
     e.preventDefault();
     var div = e.target.nextSibling;
@@ -13,6 +15,13 @@ function click(title, div) {
 function checkboxClicked(e) {
     this.missionary.standards[this.id] = this.checked;
 }
+
+/***
+ * SUMMARY:
+ *  Renders the list of missionaries by zones & areas into little boxes.
+ * NOTES:
+ * TODOS:
+ ***/
 
 var missionaries = [], checkboxes = [];
 function render(data) {
@@ -40,13 +49,19 @@ function render(data) {
                     var missionaryDiv = document.createElement('DIV');
                     missionaryDiv.className = "rMissionary";
                     areaDiv.appendChild(missionaryDiv);
-                    var standardList = data.standards[missionary.elder ? "elder" : "sister"];
+                    // Can't be bothered writing the same thing for Elders and Sisters.
+                    var standardList = data.standards["elder"];
+                    //var standardList = data.standards[missionary.elder ? "elder" : "sister"];
+                    
                     $.each(standardList, function(standards, category) {
+                        // Create a table for each category per missionary
                         $.create("H3", { parent: missionaryDiv }, category);
-                        var table = $.create("TABLE", { className: "missionary" }, $.create("TR", [
-                            $.create("TH", "Standard"),
-                            $.create("TH", "Completed")
+                        var table = $.create("TABLE", { className: "missionary", width: "70%" }, $.create("TR", [
+                            $.create("TH", { width: "80%" }, "Standard"),
+                            $.create("TH", { width: "20%" }, "Completed")
                         ]));
+                        var parserHeading = null;
+                        
                         $.each(standards, function(id, standard) {
                             var checkbox = $.create("INPUT", {
                                 type: "checkbox",
@@ -56,12 +71,27 @@ function render(data) {
                             checkbox.missionary = missionary;
                             checkbox.on("click", checkboxClicked);
                             checkboxes.push(checkbox);
+                            // Insert heading for each section of the standards.
+                            var heading = standard.split(':')[0];
+                            var parsedStandard = standard.split(':')[1].trim();
+                            if( heading != parserHeading ){
+                                parserHeading = heading;
+                                $.create("TR", { parent: table }, [
+                                        $.create("TD", [
+                                            $.create("H3", heading)
+                                        ])
+                                    ]);
+                            }
                             $.create("TR", { parent: table }, [
-                                $.create("TD", standard),
+                                $.create("TD", parsedStandard),
                                 $.create("TD", checkbox)
                             ]);
                         });
                         missionaryDiv.appendChild(table);
+                        
+                        // Add photo here
+                        var photoLink = '/stylesheets/images/standards/' + category + '.PNG';
+                        $.create('IMG', { parent: missionaryDiv, src: photoLink });
                     });
                 });
             });
@@ -70,6 +100,14 @@ function render(data) {
     $("#standards").on("submit", function(e) { e.preventDefault(); submit(); });
 }
 
+
+/***
+ * SUMMARY:
+ *  Loads the standards of excellence for the admin.
+ * NOTES:
+ * TODOS:
+ ***/
+ 
 var deletedStandards = [];
 function loadAdmin(data) {
     var element = $("#adminCategories");
@@ -192,7 +230,7 @@ function submitAdmin() {
                 var record = {
                     elder: elder,
                     category: category,
-                    name: standard
+                    name: standard,
                 };
                 if(container._id) modified[container._id] = record;
                 else inserted.push(record);
@@ -210,6 +248,12 @@ function adminSaved() {
     alert("Saved!");
 }
 
+/***
+ * SUMMARY:
+ *  Loads everything as soon as the window is ready.
+ * NOTES:
+ * TODOS:
+ ***/
 window.on("load", function() {
     $.get("/standards/get", function(response) {
         render(response);

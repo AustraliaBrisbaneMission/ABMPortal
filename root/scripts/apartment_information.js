@@ -1,4 +1,18 @@
+/**
+ * @fileoverview Online version of Sister Arseneau's apartment forms.
+ * @author hilmar.gustafsson@myldsmail.net (Elder Gústafsson)
+ */
+
 /*============================================= ACCORDION =============================================*/
+
+/**
+ *  A function that runs as soon as the page loads. Sets up the accordion functionality. Loads HTML from root/apartments/editForm.html
+ * NOTES:
+ *  1. Having a separate HTML page that I just load onto the page might not be the most effective method.
+ *  2. The accordion looks cool.
+ * TODOS:
+ *  1. editForm isn't very practical. Find a better way. (Maybe just write it out in jade in views/apartments.jade)
+ ***/
 
 $(document).ready(function()
 {
@@ -38,6 +52,13 @@ $(document).ready(function()
     $('#accordion-5').load("apartments/editForm.html #editFormDiv-4");
 });
 
+/***
+ * SUMMARY:
+ *  Closes everything in the accordion.
+ * NOTES:
+ * TODOS:
+ ***/
+
 function close_accordion_section() {
     // Close accordion
     $('.accordion .accordion-section-title').removeClass('active');
@@ -45,7 +66,14 @@ function close_accordion_section() {
 }
 
 
-    // TODO: Make the accordion choice dynamic by... something.
+/***
+ * SUMMARY:
+ *  Switches the focus of the accordion to the basic apartment information.
+ * NOTES:
+ * TODOS:
+ *  1. Possibly make it more dynamic somehow? - It can be annoying to always open up that one when selecting a new item.
+ ***/
+ 
 function updateAccordion(){
     // Open accordion-2
         close_accordion_section();
@@ -56,6 +84,16 @@ function updateAccordion(){
 }
 
 /*============================================= CRUD OPERATIONS =============================================*/
+
+/***
+ * SUMMARY:
+ *  Fetches information from database on a specific apartment by its ID.
+ * NOTES:
+ *  1. Event listeners are reset for the update buttons in this function.
+ * TODOS:
+ *  1. Tidy up.
+ *  2. Make faster.
+ ***/
 
 function FetchApartment(id, name){
     // Load up information on apartment by ID
@@ -267,6 +305,14 @@ function FetchApartment(id, name){
     });
 }
 
+/***
+ * SUMMARY:
+ *  Deletes a house from the table.
+ * NOTES:
+ * TODOS:
+ *  1. Confirm success - then refresh.
+ ***/
+
 function Delete(id, name)
 {
     // Confirm deletion
@@ -280,6 +326,15 @@ function Delete(id, name)
     }
     refreshList();
 }
+
+/***
+ * SUMMARY:
+ *  This function sends an update request to the server.js file which in turn updates the database.
+ * NOTES:
+ *  1. Very dynamic, works with whatever.
+ * TODOS:
+ *  1. Confirm success? Find some way to not refresh the table until success has been confirmed.
+ ***/
 
 function Update(id, database, data)
 {
@@ -298,6 +353,15 @@ function Update(id, database, data)
     refreshList();
 }
 
+/***
+ * SUMMARY:
+ *  Adds an apartment to the database.
+ * NOTES:
+ *  1. Very basic. Doesn't allow to add Zone, District or Area.
+ * TODOS:
+ *  1. Might want to add options for more information.
+ ***/
+
 function AddApartment()
 {
     // Open up form for adding apartment
@@ -307,9 +371,20 @@ function AddApartment()
     });
 }
 
+
+/***
+ * SUMMARY:
+ *  This function populates the table with all available apartments. Orders alphabetically by names.
+ * NOTES:
+ *  1. Generates HTML on the go. This is to accomodate a more dynamic style. (Might not be the most practical?)
+ * TODOS:
+ *  1. Might want to give the option of ordering information some other way. 
+ *     Would probably be easiest to make it dynamic and just change the database query.
+ ***/
+ 
 function refreshList(){
     // Fetch table information from database
-    $.post("/apartment_information/db", {action: "get" } , function(result) {
+    $.post("/apartment_information/db", {action: "get"} , function(result) {
         var apartments = result;
         // Create the table
         var html = "<table>" +
