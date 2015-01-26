@@ -72,15 +72,18 @@ function render(data) {
                             checkbox.on("click", checkboxClicked);
                             checkboxes.push(checkbox);
                             // Insert heading for each section of the standards.
+                            var parsedStandard = standard;
                             var heading = standard.split(':')[0];
-                            var parsedStandard = standard.split(':')[1].trim();
-                            if( heading != parserHeading ){
-                                parserHeading = heading;
-                                $.create("TR", { parent: table }, [
-                                        $.create("TD", [
-                                            $.create("H3", heading)
-                                        ])
-                                    ]);
+                            if(standard.split(':').length >= 1){
+                                parsedStandard = standard.split(':')[1].trim();
+                                if( heading != parserHeading ){
+                                    parserHeading = heading;
+                                    $.create("TR", { parent: table }, [
+                                            $.create("TD", [
+                                                $.create("H3", heading)
+                                            ])
+                                        ]);
+                                }
                             }
                             $.create("TR", { parent: table }, [
                                 $.create("TD", parsedStandard),
