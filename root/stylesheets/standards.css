@@ -12,3 +12,7 @@ table{
     vertical-align:top;
     min-height:560px;
 }
+
+td{
+    width:400px;
+}

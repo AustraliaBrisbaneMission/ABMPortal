@@ -85,7 +85,7 @@ function render(data) {
                                         ]);
                                 }
                             }
-                            $.create("TR", { parent: table }, [
+                            $.create("TR", { parent: table, width: "550px" }, [
                                 $.create("TD", parsedStandard),
                                 $.create("TD", checkbox)
                             ]);
