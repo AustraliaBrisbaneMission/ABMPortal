@@ -16,12 +16,9 @@ function checkboxClicked(e) {
     this.missionary.standards[this.id] = this.checked;
 }
 
-/***
- * SUMMARY:
- *  Renders the list of missionaries by zones & areas into little boxes.
- * NOTES:
- * TODOS:
- ***/
+/**
+ * Renders the list of missionaries by zones & areas into little boxes.
+ */
 
 var missionaries = [], checkboxes = [];
 function render(data) {
@@ -85,13 +82,25 @@ function render(data) {
                                         ]);
                                 }
                             }
-                            $.create("TR", { parent: table, width: "550px" }, [
+                            $.create("TR", { parent: table }, [
                                 $.create("TD", parsedStandard),
                                 $.create("TD", checkbox)
                             ]);
                         });
+                        /**
+                         * Add a button for each category that gives the ZL's the option of mailing the assistants
+                         * whenever a missionary completes a tier.
+                         */
+                        var requestButton;
+                        $.create('TR', { parent: table }, [
+                            $.create('TD', [
+                                requestButton = $.create('INPUT', {
+                                    type: 'submit',
+                                    value: 'Request ' + category + ' card for ' + missionary.name
+                                })])
+                        ]);
+                        requestButton.on("click", function(e) { e.preventDefault(); standardsCompleteRequest(category, missionary.name); });
                         missionaryDiv.appendChild(table);
-                        
                         // Add photo here
                         var photoLink = '/stylesheets/images/standards/' + category + '.PNG';
                         $.create('IMG', { parent: missionaryDiv, src: photoLink });
@@ -104,12 +113,19 @@ function render(data) {
 }
 
 
-/***
- * SUMMARY:
- *  Loads the standards of excellence for the admin.
- * NOTES:
- * TODOS:
- ***/
+/**
+ * Sends the request to server.js which handles and then mails it to the assistants.
+ */
+function standardsCompleteRequest(standardComplete, missionaryName){
+    $.post('/standards/complete-request', { standardComplete: standardComplete, missionaryName: missionaryName}, function(){
+        alert("Card requested!");
+    });
+}
+
+
+/**
+ * Loads the standards of excellence for the admin.
+ */
  
 var deletedStandards = [];
 function loadAdmin(data) {
@@ -251,12 +267,9 @@ function adminSaved() {
     alert("Saved!");
 }
 
-/***
- * SUMMARY:
- *  Loads everything as soon as the window is ready.
- * NOTES:
- * TODOS:
- ***/
+/**
+ * Loads everything as soon as the window is ready.
+ */
 window.on("load", function() {
     $.get("/standards/get", function(response) {
         render(response);

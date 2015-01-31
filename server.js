@@ -257,7 +257,7 @@ var Auth = {
                                     var elder = result.msnyIsElder;
                                     //Update IMOS information if possible
                                     Auth.updateOrganisation(req, function(adminAccess) {
-                                        //TODO: Find a way to get the missionary where it will work with two of the same name (ID maybe?)
+                                        //TODO: Find a way to get the missionary where it will work with two of the same name (ID/Username maybe?)
                                         console.log(req.session.fullName + " has updated the database");
                                         var query = {fullName: req.session.fullName};
                                         db.missionary.findOne(query, function(error, missionary) {
@@ -1205,6 +1205,35 @@ server.get('/standards', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     render(req, res, "standards", {});
 });
+
+/**
+ * Mails request for standards of excellence card to assistants
+ */
+server.post('/standards/complete-request', function(req, res) {
+    if(Auth.require(req, res, Auth.ZL)) return;
+    var subject = "Standards of Excellence Tier Complete For " + req.body.missionaryName;
+    var date = new Date();
+    date = new Date(date.valueOf() + date.getTimezoneOffset() * 60 * 1000 + 1000 * 60 * 60 * 10);
+    var message = [
+        'Date: ' + date.toLocaleDateString() + '<br />',
+        req.body.missionaryName + ' has completed ' + req.body.standardComplete
+    ].join('');
+    Email.send({
+        to: [{name: 'Assistants', email: 'abm.assistants@gmail.com'}],
+        cc: '',
+        subject: subject,
+        message: message,
+        callback: function(error, response) {
+            render(req, res, "standards", {
+                message: error ?
+                    "There was an error placing your order! Please try again or call the office." :
+                    "Your order has been successfully placed!",
+                success: !error
+           });
+       }
+   });
+});
+
 server.get('/standards/get', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     getStandards();
@@ -1581,11 +1610,20 @@ server.post("/apartment_information/db", function(req, res){
     // Variables needed
     var collection = db.apartments;
     
+    if( req.body.action === 'getApartmentForms' )
+    {
+        // return results.
+        db.apartmentForms.find().toArray(function(err, results) {
+            if(err) { console.log(err); res.send(500, err); }
+            else res.send(results);
+        });
+    }
+    
     // Load up the apartment list
-    if(req.body.action === "get") {
+    else if(req.body.action === "get") {
         
         // Request
-        collection.find( {$query: {}, $orderby: {houseName: 1}} ).toArray(function(err, items) {
+        collection.find( {$query: {}, $orderby: {houseName: 1}}).toArray(function(err, items) {
                 if(err) {console.log(err); res.send(500, err);}
                 else res.send(items);
            });

@@ -2,9 +2,9 @@ extend layout
 
 block head
     title Apartment Information - #{siteName}
-    link(rel='stylesheet' href='/stylesheets/apartment_information.css')
+    link(rel='stylesheet' href='/stylesheets/apartments.css')
     script(type="text/javascript" src="https://code.jquery.com/jquery-1.9.1.js")
-    script(src="/scripts/apartment_information.js" type="text/javascript")
+    script(src="/scripts/apartments.js" type="text/javascript")
 
 block content
     h1 ABM Apartment Information
@@ -12,14 +12,4 @@ block content
         div(class="accordion-section")
             a(class="accordion-section-title" href="#accordion-1") Table of Apartments
             div#accordion-1(class="accordion-section-content")
-            a(class="accordion-section-title" href="#accordion-2") Basic Information
-            div#accordion-2(class="accordion-section-content")
-            a(class="accordion-section-title" href="#accordion-3") Apartment Information
-            div#accordion-3(class="accordion-section-content")
-            a(class="accordion-section-title" href="#accordion-4") Payee (Landlord) Information
-            div#accordion-4(class="accordion-section-content")
-            a(class="accordion-section-title" href="#accordion-5") Utilities
-            div#accordion-5(class="accordion-section-content")
-                p#FlatLoadedStatus
-            a(class="accordion-section-title" href="#accordion-6") Other Forms
-            div#accordion-6(class="accordion-section-content")
+            // Based on information from db.apartmentForms, the JS script dynamically creates the rest of the forms.

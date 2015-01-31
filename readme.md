@@ -4,9 +4,8 @@ Australia Brisbane Mission Portal
 
 
 ---------------------------------
-On this project, we comment according to JSDoc standards.
-http://www.oracle.com/technetwork/java/javase/documentation/index-137868.html
+This project uses a lot of JavaScript. New to JavaScript?
 
----------------------------------
-If you are new to deploying projects in javascript or working with srs bizniz code, please read:
+https://developer.mozilla.org/en-US/docs/Web/JavaScript
+
 https://google-styleguide.googlecode.com/svn/trunk/javascriptguide.xml

@@ -1,22 +1,26 @@
 /**
  * @fileoverview Online version of Sister Arseneau's apartment forms.
  * @author hilmar.gustafsson@myldsmail.net (Elder Gústafsson)
+ * @see '/z Project Visions/Apartment Forms'
  */
 
-/*============================================= ACCORDION =============================================*/
+/*============================================= PAGE SETUP =============================================*/
 
 /**
- *  A function that runs as soon as the page loads. Sets up the accordion functionality. Loads HTML from root/apartments/editForm.html
- * NOTES:
- *  1. Having a separate HTML page that I just load onto the page might not be the most effective method.
- *  2. The accordion looks cool.
- * TODOS:
- *  1. editForm isn't very practical. Find a better way. (Maybe just write it out in jade in views/apartments.jade)
- ***/
+ *  A function that runs as soon as the page loads. Sets up the accordion functionality. Sets up the forms from database.
+ */
 
-$(document).ready(function()
-{
+$(document).ready(function(){
+    /* Load forms into the accordion using db.apartmentForms. Using JQuery to create the structure. */
+    getApartmentForms(printApartmentForms);
+});
 
+/**
+ * Closes everything in the accordion.
+ *  Used just to keep a clean look.
+ */
+ 
+function addAccordionListeners(){
     $('.accordion-section-title').click(function(e) {
         // Grab current anchor value
         var currentAttrValue = $(this).attr('href');
@@ -33,31 +37,7 @@ $(document).ready(function()
         }
         e.preventDefault();
     });
-    
-    // Load the table
-    refreshList();
-    
-    /* === Load the forms onto the accordion divs === */
-    
-    // Simple Info
-    $('#accordion-2').load("/apartments/editForm.html #editFormDiv-1");
-    
-    // Apartment Info
-    $('#accordion-3').load("apartments/editForm.html #editFormDiv-2");
-    
-    // Landlord Info
-    $('#accordion-4').load("apartments/editForm.html #editFormDiv-3");
-    
-    // Utilities
-    $('#accordion-5').load("apartments/editForm.html #editFormDiv-4");
-});
-
-/***
- * SUMMARY:
- *  Closes everything in the accordion.
- * NOTES:
- * TODOS:
- ***/
+}
 
 function close_accordion_section() {
     // Close accordion
@@ -66,13 +46,9 @@ function close_accordion_section() {
 }
 
 
-/***
- * SUMMARY:
- *  Switches the focus of the accordion to the basic apartment information.
- * NOTES:
- * TODOS:
- *  1. Possibly make it more dynamic somehow? - It can be annoying to always open up that one when selecting a new item.
- ***/
+/**
+ * Switches the focus of the accordion to the basic apartment information.
+ */
  
 function updateAccordion(){
     // Open accordion-2
@@ -83,103 +59,75 @@ function updateAccordion(){
         $('.accordion #accordion-1').slideDown(300).addClass('open'); 
 }
 
-/*============================================= CRUD OPERATIONS =============================================*/
+/* ============================================= Parsing Operations ============================================= */
 
-/***
- * SUMMARY:
- *  Fetches information from database on a specific apartment by its ID.
- * NOTES:
- *  1. Event listeners are reset for the update buttons in this function.
- * TODOS:
- *  1. Tidy up.
- *  2. Make faster.
- ***/
+/**
+ * Parses through apartmentForms results & writes to HTML DOM
+ */
+function printApartmentForms( forms ){
+    var accordion = $('.accordion-section');
+    for(var i = 0; i < forms.length; i++)
+    {
+        // Create the next section in the accordion
+        accordion.append('<a class="accordion-section-title" href="#accordion-' + (i + 2) + '">' + forms[i]['name'] + '</a>');
+        
+        // Create content for the form
+        var formContent = '';
+        var structure = forms[i]['structure'];
+        for(var j in structure){
+            var name = structure[j];
+            formContent += '<div>';
+            formContent += '<label for="' + name + '-' + j + '">' + name + '</label>';
+            // Input
+            formContent += '<input type="Text" id="' + name + '-' + j + '/>';
+            formContent += '</div> \r\n';
+        }
+        
+        // Create the form
+        var myForm = '<form>' + formContent + '<input type="Button" id="' + i + '-submit" value="Update"/>' + '</form>';
+            
+        // Create DIV
+        var myDiv = accordion.append('<div id="accordion-' + (i + 2) + '" class="accordion-section-content">' + myForm + '</div>');
+    }
+    
+    // Enable accordion after loading forms.
+    addAccordionListeners();
+}
+
+/* ============================================= Database calls ============================================= */
+
+/**
+ * Calls MONGODB collection apartmentForms.
+ * @returns results
+ *  Array of all the forms in the database.
+ * TODO: Add more options to this later as needed
+ */
+function getApartmentForms(callback){
+    // Sends a POST request to the server with the action getApartmentForms
+    $.post("/apartment_information/db", { action: "getApartmentForms" }, function(results){
+        if(results !== undefined){
+            callback(results);
+        }
+        else{
+            return false;
+        }
+    });
+}
+
+
+/**
+ * Fetches information from database on a specific apartment by its ID.
+ */
 
 function FetchApartment(id, name){
     // Load up information on apartment by ID
-    $.post("/apartment_information/db", {action: "flatID", flatID: id }, function(result)
+    $.post("/apartment_information/db", {action: "flatID", flatID: id }, function(form)
     {
-        // Declare variables
-        var houseInfo = result[0] || null;
-        var houseForms = result[1] || {};
-        var Apt_Utils = result[2] || {};
-        var Apt_Info = {}, Payee_Info = {};
+        // Sort into forms
         
-        if(houseForms.length >= 1)
-        {
-            for (var i = 0; i < houseForms.length; i++) 
-            {
-                switch(houseForms[i]['formType'])
-                {
-                    case 'Apartment Information':
-                        Apt_Info = houseForms[i];
-                        break;
-                    case 'Payee (Landlord) Information':
-                        Payee_Info = houseForms[i];
-                        break;
-                }
-            }
-        }
+        // Foreach fill forms with information already in database
         
-        // House Basic Info
-        $('#houseName').val(houseInfo['houseName']);
-        $('#proselytingArea').val(houseInfo['proselytingArea']);
-        $('#district').val(houseInfo['district']);
-        $('#zone').val(houseInfo['zone']);
-        
-        // Apartment Info Form
-        $('#apartmentAddress').val(Apt_Info['address']);
-        $('#apartmentPhoneNumber').val(Apt_Info['phoneNumber']);
-        $('#apartmentRentAmount').val(Apt_Info['rentAmount']);
-        $('#apartmentDateOpened').val(Apt_Info['dateOpened']);
-        $('#apartmentLengthOfLease').val(Apt_Info['lengthOfLease']);
-        $('#apartmentDateExpires').val(Apt_Info['dateExpires']);
-        $('#apartmentRefundableDepositAmount').val(Apt_Info['refundableDepositAmount']);
-        $('#apartmentBondNumber').val(Apt_Info['bondNumber']);
-        $('#apartmentDateClosed').val(Apt_Info['dateClosed']);
-        $('#apartmentDepositAmountReturned').val(Apt_Info['depositAmountReturned']);
-        $('#apartmentMoveInInspection').val(Apt_Info['moveInInspection']);
-        $('#apartmentMoveInInspectionDate').val(Apt_Info['moveInInspectionDate']);
-        $('#apartmentMoveOutInspection').val(Apt_Info['moveOutInspection']);
-        $('#apartmentMoveOutInspectionDate').val(Apt_Info['moveOutInspectionDate']);
-        $('#apartmentAdvanceNoticeRequired').val(Apt_Info['advanceNoticeRequired']);
-        $('#apartmentHowManyDays').val(Apt_Info['howManyDays']);
-
-        $('#payeeName').val(Payee_Info['payeeName']);
-        $('#payeePhoneNumber').val(Payee_Info['phoneNumber']);
-        $('#payeeMailingAddress').val(Payee_Info['mailingAddress']);
-        $('#payeeContactName').val(Payee_Info['contactName']);
-        $('#payeeContactPhone').val(Payee_Info['contactPhone']);
-        $('#payeeEmailAddress').val(Payee_Info['address']);
-        $('#payeeVendorNumber').val(Payee_Info['vendorNumber']);
-        
-        // Utilities
-        var waterArray =    Apt_Utils[0] || {};
-        var elecArray =     Apt_Utils[1] || {};
-        var gasArray =      Apt_Utils[2] || {};
-        
-        $('#waterCompanyName').val(waterArray['companyName']);
-        $('#waterPhoneNumber').val(waterArray['phoneNumber']);
-        $('#waterAddress').val(waterArray['address']);
-        $('#waterContactPersonAndComments').val(waterArray['contactPersonAndComments']);
-        $('#elecCompanyName').val(elecArray['companyName']);
-        $('#elecPhoneNumber').val(elecArray['phoneNumber']);
-        $('#elecAddress').val(elecArray['address']);
-        $('#elecResponsibleParty').val(elecArray['responsibleParty']);
-        $('#elecSetupDate').val(elecArray['setupDate']);
-        $('#elecClosingDate').val(elecArray['closingDate']);
-        $('#elecAccountNumber').val(elecArray['accountNumber']);
-        $('#elecRefundableDeposit').val(elecArray['refundableDeposit']);
-        $('#elecContactPersonAndComments').val(elecArray['contactPersonAndComments']);
-        $('#gasCompanyName').val(gasArray['companyName']);
-        $('#gasPhoneNumber').val(gasArray['phoneNumber']);
-        $('#gasAddress').val(gasArray['address']);
-        $('#gasResponsibleParty').val(gasArray['responsibleParty']);
-        $('#gasSetupDate').val(gasArray['setupDate']);
-        $('#gasClosingDate').val(gasArray['closingDate']);
-        $('#gasAccountNumber').val(gasArray['accountNumber']);
-        $('#gasRefundableDeposit').val(gasArray['refundableDeposit']);
-        $('#gasContactPersonAndComments').val(gasArray['contactPersonAndComments']);
+        // TODO THIS IS WHERE I WAS WHEN WE LEFT.
         
         // Open accordion-2
         close_accordion_section();

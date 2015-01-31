@@ -40,14 +40,13 @@ label{
     width:20%;
 }
 
-#editForm div{
+.accordion-section div{
     width:100%;
-    display:inline-block;
     vertical-align:top;
 }
 
-#editForm div div{
-    width:30%;
+.accordion-section div div{
+    width:50%;
 }
 
 input[type=text]:focus {
