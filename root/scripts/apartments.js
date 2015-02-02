@@ -12,6 +12,7 @@
 
 $(document).ready(function(){
     /* Load forms into the accordion using db.apartmentForms. Using JQuery to create the structure. */
+    refreshList();
     getApartmentForms(printApartmentForms);
 });
 
@@ -46,9 +47,7 @@ function close_accordion_section() {
 }
 
 
-/**
- * Switches the focus of the accordion to the basic apartment information.
- */
+/* Switches the focus of the accordion to the basic apartment information. */
  
 function updateAccordion(){
     // Open accordion-2
@@ -65,29 +64,52 @@ function updateAccordion(){
  * Parses through apartmentForms results & writes to HTML DOM
  */
 function printApartmentForms( forms ){
-    var accordion = $('.accordion-section');
+    var accordion = document.getElementById('accordion-section');
     for(var i = 0; i < forms.length; i++)
     {
-        // Create the next section in the accordion
-        accordion.append('<a class="accordion-section-title" href="#accordion-' + (i + 2) + '">' + forms[i]['name'] + '</a>');
+        // Create Elements
+        var formTitle = document.createElement('a'),
+            formDiv = document.createElement('div'),
+            form = document.createElement('form'),
+            formTitleText = document.createTextNode(forms[i]['name']);
+        // Create Attributes
+        formTitle.setAttribute('class', 'accordion-section-title');
+        formTitle.setAttribute('href', '#accordion-' + (i + 2));
+        formDiv.setAttribute('id', 'accordion-' + (i + 2));
+        formDiv.setAttribute('class', 'accordion-section-content');
+        // Append
+        accordion.append(formTitle);
+        accordion.append(formDiv);
+        formTitle.append(formTitleText);
         
-        // Create content for the form
-        var formContent = '';
+        // Populate form
         var structure = forms[i]['structure'];
         for(var j in structure){
-            var name = structure[j];
-            formContent += '<div>';
-            formContent += '<label for="' + name + '-' + j + '">' + name + '</label>';
-            // Input
-            formContent += '<input type="Text" id="' + name + '-' + j + '/>';
-            formContent += '</div> \r\n';
+            // Local constants
+            var name = structure[j],
+                inputName = name + '-' + i;
+            // Create Elements
+            var div = document.createElement('div'),
+                label = document.createElement('label'),
+                input = document.createElement('input'),
+                labelValue = document.createTextNode(name);
+            // Create attributes
+            label.setAttribute('for', inputName);
+            input.setAttribute('type', 'text');
+            input.setAttribute('id', inputName);
+            // Append
+            formDiv.append(div);
+            div.append(label);
+            div.append(input);
+            label.append(labelValue);
         }
         
-        // Create the form
-        var myForm = '<form>' + formContent + '<input type="Button" id="' + i + '-submit" value="Update"/>' + '</form>';
-            
-        // Create DIV
-        var myDiv = accordion.append('<div id="accordion-' + (i + 2) + '" class="accordion-section-content">' + myForm + '</div>');
+        // Update button
+        var submit = document.createElement('input');
+        submit.setAttribute('type', 'button');
+        submit.setAttribute('value', 'Update');
+        submit.setAttribute('id', 'Form-' + i);
+        formDiv.append(submit);
     }
     
     // Enable accordion after loading forms.
@@ -269,7 +291,7 @@ function Delete(id, name)
         //Delete & forms associated to that flat
         $.post("/apartment_information/db", {action: "delete", _id: id }, function()
         {
-            // TODO: See if deletion was successful
+            
         });
     }
     refreshList();
@@ -295,10 +317,9 @@ function Update(id, database, data)
     }, 
     function(result)
     {
-        // Success?
+        alert('Updating was a success!');
+        refreshList();
     });
-    
-    refreshList();
 }
 
 /***
@@ -321,8 +342,7 @@ function AddApartment()
 
 
 /***
- * SUMMARY:
- *  This function populates the table with all available apartments. Orders alphabetically by names.
+ *  Queries database for all information on apartments. Sorts alphabetically into table.
  * NOTES:
  *  1. Generates HTML on the go. This is to accomodate a more dynamic style. (Might not be the most practical?)
  * TODOS:
@@ -332,37 +352,83 @@ function AddApartment()
  
 function refreshList(){
     // Fetch table information from database
-    $.post("/apartment_information/db", {action: "get"} , function(result) {
-        var apartments = result;
-        // Create the table
-        var html = "<table>" +
-                        "<tr>" +
-                            "<th id='delete'><a onclick='AddApartment()'><img src='/stylesheets/images/addButton.png'></a></th>" +
-                            "<th>House Name</th>" +
-                            "<th>Proselyting Area</th>" +
-                            "<th>District</th>" +
-                            "<th>Zone</th>" +
-                        "</tr>";
+    $.post("/apartment_information/db", {action: "get"} , function(apartments) {
+        // Clear HTML
+        $('#accordion-1').html('');
+        
+        // Create Elements
+        var accordionDiv = document.getElementById('accordion-1'),
+            table = document.createElement('table'),
+            headerRow = document.createElement('tr'),
+            addButton = document.createElement('img'),
+            h1Func = document.createElement('a'),
+            header1 = document.createElement('th'),
+            header2 = document.createElement('th'),
+            header3 = document.createElement('th'),
+            header4 = document.createElement('th'),
+            header5 = document.createElement('th'),
+            h2Text = document.createTextNode('House Name'),
+            h3Text = document.createTextNode('Proselyting Area'),
+            h4Text = document.createTextNode('District'),
+            h5Text = document.createTextNode('Zone');
+        // Create Attributes
+        addButton.setAttribute('src', '/stylesheets/images/addButton.png');
+        header1.setAttribute('id', 'delete');
+        h1Func.setAttribute('onclick', 'AddApartment()');
+        // Append
+        accordionDiv.append(table);
+        table.append(headerRow);
+        headerRow.append(header1);
+        header1.append(h1Func);
+        h1Func.append(addButton);
+        headerRow.append(header2);
+        headerRow.append(header3);
+        headerRow.append(header4);
+        headerRow.append(header5);
+        header2.append(h2Text);
+        header3.append(h3Text);
+        header4.append(h4Text);
+        header5.append(h5Text);
         
         // For every object in the database result, iterate through fields and post to table.
-        for(var object in result)
+        for(var object in apartments)
         {
-            var i = result[object];
+            var i = apartments[object];
             var onClickDelete = "Delete('" + i['_id'] + "','" + i['houseName'] + "')";
             var onClickFetch = "FetchApartment('" + i['_id'] + "','" + i['houseName'] + "')";
-            html += "<tr>" +
-                        // Delete apartment by ID
-                        "<td><a onclick=\"" + onClickDelete + "\"><img src='/stylesheets/images/deleteButton.png'></a></td>" +
-                        // Load up all files on apartment by ID
-                        "<td><a onclick=\"" + onClickFetch + "\">" + i['houseName']  + "</a></td>" +
-                        "<td>" + i['proselytingArea'] + "</td>" +
-                        "<td>" + i['district'] + "</td>" +
-                        "<td>" + i['zone'] + "</td>" +
-                    "</tr>"
+            
+            // Create Elements
+            var subRow = document.createElement('tr'),
+                onDel = document.createElement('a'),
+                onFetch = document.createElement('a'),
+                delBtn = document.createElement('img'),
+                td_1 = document.createElement('td'),
+                td_2 = document.createElement('td'),
+                td_3 = document.createElement('td'),
+                td_4 = document.createElement('td'),
+                td_5 = document.createElement('td'),
+                td_2Text = document.createTextNode(i['houseName']),
+                td_3Text = document.createTextNode(i['proselyingArea']),
+                td_4Text = document.createTextNode(i['district']),
+                td_5Text = document.createTextNode(i['zone']);
+            // Create Attributes
+            onDel.setAttribute('onclick', onClickDelete);
+            onFetch.setAttribute('onclick', onClickFetch);
+            delBtn.setAttribute('src', '/stylesheets/images/deleteButton.png')
+            // Append
+            table.append(subRow);
+            subRow.append(td_1);
+            subRow.append(td_2);
+            subRow.append(td_3);
+            subRow.append(td_4);
+            subRow.append(td_5);
+            td_1.append(onDel);
+            td_2.append(onFetch);
+            td_3.append(td_3Text);
+            td_4.append(td_4Text);
+            td_5.append(td_5Text);
+            onDel.append(delBtn);
+            onFetch.append(td_2Text);
         }
-        
-        html += "</table>";
-        
-        $('#accordion-1').html(html);
     });
 }

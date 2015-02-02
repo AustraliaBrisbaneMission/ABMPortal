@@ -1241,7 +1241,7 @@ server.get('/standards/get', function (req, res) {
     // District Leaders will not be allowed to view or edit this for now.
     // if(req.session.auth == Auth.DL) query = {district: req.session.district};
     // else if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
-    if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
+    //if(req.session.auth == Auth.ZL) query = {zone: req.session.zone};
     db.missionary.find(query).toArray(function(error, items) {
         var zones = {};
         for(var i = 0; i < items.length; i++) {
