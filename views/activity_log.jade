@@ -1,0 +1,13 @@
+extend layout
+
+block head
+    title Activity Log - #{siteName}
+    link(rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.10.5/css/jquery.dataTables.css")
+    script(type="text/javascript" charset="utf8" src="//code.jquery.com/jquery-1.10.2.min.js")
+    script(type="text/javascript" charset="utf8" src="//cdn.datatables.net/1.10.5/js/jquery.dataTables.js")
+    script(type="text/javascript" src="/scripts/activity_log.js")
+
+block content
+    h1 Activity Log
+    div(style="display:inline-block;width:100%")
+        table#logTable

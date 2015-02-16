@@ -10,7 +10,8 @@
  *  A function that runs as soon as the page loads. Sets up the accordion functionality. Sets up the forms from database.
  */
 
-$(document).ready(function(){
+$(document).ready(function()
+{
     /* Load forms into the accordion using db.apartmentForms. Using JQuery to create the structure. */
     refreshList();
     getApartmentForms(printApartmentForms);
@@ -21,15 +22,16 @@ $(document).ready(function(){
  *  Used just to keep a clean look.
  */
  
-function addAccordionListeners(){
+function addAccordionListeners()
+{
     $('.accordion-section-title').click(function(e) {
         // Grab current anchor value
         var currentAttrValue = $(this).attr('href');
  
         if($(e.target).is('.active')) {
-            close_accordion_section();
+            closeAccordionSection();
         }else {
-            close_accordion_section();
+            closeAccordionSection();
  
             // Add active class to section title
             $(this).addClass('active');
@@ -40,7 +42,8 @@ function addAccordionListeners(){
     });
 }
 
-function close_accordion_section() {
+function closeAccordionSection()
+{
     // Close accordion
     $('.accordion .accordion-section-title').removeClass('active');
     $('.accordion .accordion-section-content').slideUp(300).removeClass('open');
@@ -49,13 +52,15 @@ function close_accordion_section() {
 
 /* Switches the focus of the accordion to the basic apartment information. */
  
-function updateAccordion(){
-    // Open accordion-2
-        close_accordion_section();
+function updateAccordion( id )
+{
+    // Open accordion section based off of id
+    this.id = id || 2;
+        closeAccordionSection();
         // Add active class to section title
-        $('.accordion-section-title[href$="#accordion-2"]').addClass('active');
+        $('.accordion-section-title[href$="#accordion-' + this.id + '"]').addClass('active');
         // Open up the hidden content panel
-        $('.accordion #accordion-1').slideDown(300).addClass('open'); 
+        $('.accordion #accordion-' + this.id).slideDown(300).addClass('open'); 
 }
 
 /* ============================================= Parsing Operations ============================================= */
@@ -63,7 +68,8 @@ function updateAccordion(){
 /**
  * Parses through apartmentForms results & writes to HTML DOM
  */
-function printApartmentForms( forms ){
+function printApartmentForms( forms )
+{
     var accordion = document.getElementById('accordion-section');
     for(var i = 0; i < forms.length; i++)
     {
@@ -96,7 +102,7 @@ function printApartmentForms( forms ){
             // Create attributes
             label.setAttribute('for', inputName);
             input.setAttribute('type', 'text');
-            input.setAttribute('id', inputName);
+            input.setAttribute('id', inputName.replace(/ /g,''));
             // Append
             formDiv.append(div);
             div.append(label);
@@ -116,15 +122,14 @@ function printApartmentForms( forms ){
     addAccordionListeners();
 }
 
-/* ============================================= Database calls ============================================= */
-
 /**
  * Calls MONGODB collection apartmentForms.
  * @returns results
  *  Array of all the forms in the database.
  * TODO: Add more options to this later as needed
  */
-function getApartmentForms(callback){
+function getApartmentForms(callback)
+{
     // Sends a POST request to the server with the action getApartmentForms
     $.post("/apartment_information/db", { action: "getApartmentForms" }, function(results){
         if(results !== undefined){
@@ -136,141 +141,49 @@ function getApartmentForms(callback){
     });
 }
 
+/* Fetches information from database on a specific apartment by its ID. */
 
-/**
- * Fetches information from database on a specific apartment by its ID.
- */
-
-function FetchApartment(id, name){
+function fetchApartment(id, name)
+{
     // Load up information on apartment by ID
-    $.post("/apartment_information/db", {action: "flatID", flatID: id }, function(form)
+    $.post("/apartment_information/db", { action: "flatID", flatID: id }, function(myForms)
     {
-        // Sort into forms
-        
-        // Foreach fill forms with information already in database
-        
-        // TODO THIS IS WHERE I WAS WHEN WE LEFT.
-        
-        // Open accordion-2
-        close_accordion_section();
-        // Add active class to section title
-        $('.accordion-section-title[href$="#accordion-2"]').addClass('active');
-        // Open up the hidden content panel
-        $('.accordion #accordion-2').slideDown(300).addClass('open'); 
-        
-        // Event listeners for the submit buttons.
-        // (Every time someone selects a new flat, the flat ID & everything has to be changed for these buttons as well.)
-        
-        $('#basicInfoSubmit').unbind('click');
-        $('#basicInfoSubmit').click(function(e)
-        {
-            // Update basic info
-            Update(id, "apartments", 
-            {
-                houseName: $('#houseName').val(),
-                proselytingArea: $('#proselytingArea').val(),
-                district: $('#district').val(),
-                zone: $('#zone').val()
-            });
+        getApartmentForms(function(forms){
+            for(var index in forms){
+                // Local Constants
+                var form = forms[index],
+                    structure = form['structure'],
+                    formName = form['name'];
+                
+                // Put information in inputs
+                for(var input in structure){
+                    // Variables
+                    var fieldName = structure[input],
+                        inputID = '#' + fieldName.replace(/ /g,'') + '-' + index,
+                        formIndex = null;
+                    // Insert into input
+                    $(inputID).val(myForms[0][formName][fieldName]);
+                }
+                
+                // Event listeners
+                $('#Form-' + index).unbind('click');
+                $('#Form-' + index).click(function(e){
+                    
+                    // Construct JSON object
+                    var jsonData = {};
+                        jsonData[formName] = {};
+                    for(var input in structure){
+                        // Variables
+                        var fieldName = structure[input],
+                            inputID = '#' + fieldName + '-' + index,
+                            fieldValue = $(inputID.replace(/ /g,'')).val();
+                        // Insert values into json object
+                        jsonData[formName][fieldName] = fieldValue;
+                    }
+                    update(id, 'apartments', jsonData);
+                });
+            }
             updateAccordion();
-        });
-        
-        $('#aptInfoSubmit').unbind('click');
-        $('#aptInfoSubmit').click(function(e)
-        {
-           // Update Apartment Info 
-           Update(id, "apartmentForms", 
-           {
-               formType: 'Apartment Information',
-               'id': id,
-               address: $('#apartmentAddress').val(),
-               phoneNumber: $('#apartmentPhoneNumber').val(),
-               rentAmount: $('#apartmentRentAmount').val(),
-               dateOpened: $('#apartmentDateOpened').val(),
-               lengthOfLease: $('#apartmentLengthOfLease').val(),
-               dateExpires: $('#apartmentDateExpires').val(),
-               refundableDepositAmount: $('#apartmentRefundableDepositAmount').val(),
-               bondNumber: $('#apartmentBondNumber').val(),
-               dateClosed: $('#apartmentDateClosed').val(),
-               depositAmountReturned: $('#apartmentDepositAmountReturned').val(),
-               moveInInspection: $('#apartmentMoveInInspection').val(),
-               moveInInspectionDate: $('#apartmentMoveInInspectionDate').val(),
-               moveOutInspection: $('#apartmentMoveOutInspection').val(),
-               moveOutInspectionDate: $('#apartmentMoveOutInspectionDate').val(),
-               advanceNoticeRequired: $('#apartmentAdvanceNoticeRequired').val(),
-               howManyDays: $('#apartmentHowManyDays').val()
-           });
-           updateAccordion();
-        });
-        
-        
-        $('#payeeInfoSubmit').unbind('click');
-        $('#payeeInfoSubmit').click(function(e)
-        {
-            // Update Payee Info
-            Update(id, "apartmentForms", 
-            {
-                formType: 'Payee (Landlord) Information',
-                'id': id,
-                payeeName:      $('#payeeName').val(),
-                phoneNumber:    $('#payeePhoneNumber').val(),
-                mailingAddress: $('#payeeMailingAddress').val(),
-                contactName:    $('#payeeContactName').val(),
-                contactPhone:   $('#payeeContactPhone').val(),
-                address:        $('#payeeEmailAddress').val(),
-                vendorNumber:   $('#payeeVendorNumber').val()
-            });
-            updateAccordion();
-        });
-        
-        // Submit utilities
-        $('#utilSubmit').unbind('click');
-        $('#utilSubmit').click(function(e)
-        {
-            // Water
-           Update(id, "apartmentUtils", 
-           {
-               'id': id,
-               utility: 'Water',
-               companyName: $('#waterCompanyName').val(),
-               phoneNumber: $('#waterPhoneNumber').val(),
-               address: $('#waterAddress').val(),
-               contactPersonAndComments: $('#waterContactPersonAndComments').val() 
-           });
-           
-           // Electricity
-           Update(id, "apartmentUtils", 
-           {
-               'id': id,
-               utility: 'Electricity',
-               companyName: $('#elecCompanyName').val(),
-               phoneNumber: $('#elecPhoneNumber').val(),
-               address: $('#elecAddress').val(),
-               responsibleParty: $('elecResponsibleParty').val(),
-               setupDate: $('elecSetupDate').val(),
-               closingDate: $('elecClosingDate').val(),
-               accountNumber: $('elecAccountNumber').val(),
-               refundableDeposit: $('elecRefundableDeposit').val(),
-               contactPersonAndComments: $('#elecContactPersonAndComments').val() 
-           });
-           
-           // Gas
-           Update(id, "apartmentUtils", 
-           {
-               'id': id,
-               utility: 'Gas',
-               companyName: $('#gasCompanyName').val(),
-               phoneNumber: $('#gasPhoneNumber').val(),
-               address: $('#gasAddress').val(),
-               responsibleParty: $('gasResponsibleParty').val(),
-               setupDate: $('gasSetupDate').val(),
-               closingDate: $('gasClosingDate').val(),
-               accountNumber: $('gasAccountNumber').val(),
-               refundableDeposit: $('gasRefundableDeposit').val(),
-               contactPersonAndComments: $('#gasContactPersonAndComments').val() 
-           });
-           
-           updateAccordion();
         });
     });
 }
@@ -283,7 +196,7 @@ function FetchApartment(id, name){
  *  1. Confirm success - then refresh.
  ***/
 
-function Delete(id, name)
+function deleteApartment(id, name)
 {
     // Confirm deletion
     if(confirm("Are you sure you want to delete " + name + "?"))
@@ -297,16 +210,13 @@ function Delete(id, name)
     refreshList();
 }
 
-/***
- * SUMMARY:
+/**
  *  This function sends an update request to the server.js file which in turn updates the database.
  * NOTES:
- *  1. Very dynamic, works with whatever.
- * TODOS:
  *  1. Confirm success? Find some way to not refresh the table until success has been confirmed.
  ***/
 
-function Update(id, database, data)
+function update(id, database, data)
 {
     $.post("/apartment_information/db", 
     {
@@ -322,8 +232,7 @@ function Update(id, database, data)
     });
 }
 
-/***
- * SUMMARY:
+/**
  *  Adds an apartment to the database.
  * NOTES:
  *  1. Very basic. Doesn't allow to add Zone, District or Area.
@@ -331,26 +240,28 @@ function Update(id, database, data)
  *  1. Might want to add options for more information.
  ***/
 
-function AddApartment()
+function addApartment()
 {
     // Open up form for adding apartment
     var aptName = prompt('What is the name of the apartment?');
-    $.post("/apartment_information/db", {action: "createApt", houseName: aptName}, function(result){
-        refreshList();
-    });
+    if(aptName)
+    {
+        $.post("/apartment_information/db", { action: "createApt", 'House Name': aptName }, function(result){
+            refreshList();
+        });
+    }
 }
 
 
 /***
  *  Queries database for all information on apartments. Sorts alphabetically into table.
  * NOTES:
- *  1. Generates HTML on the go. This is to accomodate a more dynamic style. (Might not be the most practical?)
- * TODOS:
  *  1. Might want to give the option of ordering information some other way. 
  *     Would probably be easiest to make it dynamic and just change the database query.
  ***/
  
-function refreshList(){
+function refreshList()
+{
     // Fetch table information from database
     $.post("/apartment_information/db", {action: "get"} , function(apartments) {
         // Clear HTML
@@ -374,7 +285,7 @@ function refreshList(){
         // Create Attributes
         addButton.setAttribute('src', '/stylesheets/images/addButton.png');
         header1.setAttribute('id', 'delete');
-        h1Func.setAttribute('onclick', 'AddApartment()');
+        h1Func.setAttribute('onclick', 'addApartment()');
         // Append
         accordionDiv.append(table);
         table.append(headerRow);
@@ -393,9 +304,11 @@ function refreshList(){
         // For every object in the database result, iterate through fields and post to table.
         for(var object in apartments)
         {
-            var i = apartments[object];
-            var onClickDelete = "Delete('" + i['_id'] + "','" + i['houseName'] + "')";
-            var onClickFetch = "FetchApartment('" + i['_id'] + "','" + i['houseName'] + "')";
+            var aptID = apartments[object]['_id'],
+                bscINFO = apartments[object]['Basic Information'];
+                
+            var onClickDelete = "deleteApartment('" + aptID + "','" + bscINFO['House Name'] + "')";
+            var onClickFetch = "fetchApartment('" + aptID + "','" + bscINFO['House Name'] + "')";
             
             // Create Elements
             var subRow = document.createElement('tr'),
@@ -407,10 +320,10 @@ function refreshList(){
                 td_3 = document.createElement('td'),
                 td_4 = document.createElement('td'),
                 td_5 = document.createElement('td'),
-                td_2Text = document.createTextNode(i['houseName']),
-                td_3Text = document.createTextNode(i['proselyingArea']),
-                td_4Text = document.createTextNode(i['district']),
-                td_5Text = document.createTextNode(i['zone']);
+                td_2Text = document.createTextNode(bscINFO['House Name']),
+                td_3Text = document.createTextNode(bscINFO['Proselyting Area']),
+                td_4Text = document.createTextNode(bscINFO['District']),
+                td_5Text = document.createTextNode(bscINFO['Zone']);
             // Create Attributes
             onDel.setAttribute('onclick', onClickDelete);
             onFetch.setAttribute('onclick', onClickFetch);

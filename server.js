@@ -69,6 +69,7 @@ db.db.open(function(error, database) {
     db.database = database;
     if(error) {console.error("MongoDB Open Error: " + error); return;}
     function getCollections() {
+        db.weeklyLog = db.database.collection('weeklyLog');
         db.recommendations = db.database.collection('recommendations');
         db.users = db.database.collection('users');
         db.indicators = db.database.collection('indicators');
@@ -185,11 +186,25 @@ var Auth = {
         else for(var name in variables) req.session[name] = variables[name];
    },
     login: function(req, callback) {
-        var username = req.param('username'), password = req.param('password');
+        var username = req.param('username'), 
+            password = req.param('password');
         Auth.setSession(req);
         
         function done(success) {
-            if(success) console.log(req.session.displayName + " (" + req.session.username + ") the brave logged in!");
+            if(success)
+            {
+                console.log(req.session.displayName + " (" + req.session.username + ") the brave logged in!");
+                // Log in database who logged in and date
+                db.weeklyLog.insert([[
+                    'Log in',
+                    req.session.username,
+                    req.session.displayName,
+                    austral_Format(new Date())
+                ]], function(error, success){
+                    if(error) console.log(error);
+                    else return;
+                });
+            }
             else Auth.logout(req);
             callback(success);
        }
@@ -350,7 +365,20 @@ var Auth = {
            }
        });
    },
-    logout: function(req) {Auth.setSession(req);},
+    logout: function(req) {
+        // Log in database who logs out and when
+        db.weeklyLog.insert([[
+                    'Log out',
+                    req.session.username,
+                    req.session.displayName,
+                    austral_Format(new Date())
+                ]], function(error, success){
+                    if(error) console.log(error);
+                    else return;
+                });
+        Auth.setSession(req);
+        
+    },
     require: function(req, res, auth, orSenior) {
         if(req.session.auth && (req.session.auth >= auth ||
             orSenior && req.session.senior)) return false;
@@ -775,10 +803,6 @@ var Emailer = function() {
    };
 };
 
-//Web Pages
-// NOTE: If you want to add a new page to the website
-// use the Page function
-// see examples below.
 function render(req, res, page, params) {
     if(!params) params = {};
     for(var key in req.session) params[key] = req.session[key];
@@ -786,6 +810,8 @@ function render(req, res, page, params) {
     params.admin = req.session.auth == Auth.ADMIN;
     res.render(page, params);
 }
+
+// Pages
 var Page = function(url, jade, auth, onResponse) {
     var page = this;
     page.auth = auth;
@@ -797,6 +823,26 @@ var Page = function(url, jade, auth, onResponse) {
         else render(req, res, page.jade, {});
    });
 };
+
+new Page("/remove_missionary", "remove_missionary.jade", Auth.ADMIN);
+new Page("/indicators/view", "sr_indicators_viewer.jade", Auth.ADMIN);
+new Page("/apartment_information", "apartments.jade", Auth.ADMIN);
+new Page("/apartments_admin", "apartments_admin.jade", Auth.ADMIN);
+new Page("/callsheet", "callsheet.jade", Auth.ADMIN);
+new Page("/import", "import.jade", Auth.ADMIN);
+new Page("/graphs", "graphs.jade", Auth.ADMIN);
+new Page('/activity_log', 'activity_log.jade', Auth.ADMIN);
+
+// Activity Log
+server.post('/activity_log/db', function(req, res){
+    // Send log to page
+    db.weeklyLog.find().toArray(function(error, results){
+        if(error){ console.log(error); res.send(500); return; }
+        else{ res.send(200, results); }
+    });
+});
+
+// Serverside handling
 server.get('/', function (req, res) {
     if(req.session.senior) {
         var indicators = [], configIndicators = Config.seniors.indicators;
@@ -810,6 +856,7 @@ server.get('/', function (req, res) {
            });
        }
         function formatDate(date) {
+            var hour, minute, second;
             var day = date.getUTCDate();
             var month = date.getUTCMonth() + 1;
             var year = date.getUTCFullYear();
@@ -831,7 +878,6 @@ server.get('/', function (req, res) {
    }
     else render(req, res, "index", {});
 });
-new Page("/indicators/view", "sr_indicators_viewer.jade", Auth.ADMIN);
 server.get("/indicators/get", function(req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
     //Get indicators for the last few weeks
@@ -1233,7 +1279,6 @@ server.post('/standards/complete-request', function(req, res) {
        }
    });
 });
-
 server.get('/standards/get', function (req, res) {
     if(Auth.require(req, res, Auth.ZL)) return;
     getStandards();
@@ -1599,8 +1644,6 @@ server.post('/historical_data/db', function (req, res) {
     else res.send(500, "Unknown action");
 });
 
-//Apartment Information Sheet
-new Page("/apartment_information", "apartments.jade", Auth.ADMIN);
 
 //Apartment_Information.js
 server.post("/apartment_information/db", function(req, res){
@@ -1623,7 +1666,7 @@ server.post("/apartment_information/db", function(req, res){
     else if(req.body.action === "get") {
         
         // Request
-        collection.find( {$query: {}, $orderby: {houseName: 1}}).toArray(function(err, items) {
+        collection.find().toArray(function(err, items) {
                 if(err) {console.log(err); res.send(500, err);}
                 else res.send(items);
            });
@@ -1631,7 +1674,17 @@ server.post("/apartment_information/db", function(req, res){
     
     else if(req.body.action === "createApt")
     {
-        collection.insert({houseName: req.body.houseName}, function(error, result){
+        collection.insert(
+            {
+                'Basic Information' : 
+                { 
+                    'House Name': req.body['House Name'], 
+                    'Proselyting Area': '', 
+                    'District': '', 
+                    'Zone': ''
+                }
+                
+            }, function(error, result){
             if(error) {console.log(error); result.send(500, error);}
             res.send(200);
        });
@@ -1684,9 +1737,10 @@ server.post("/apartment_information/db", function(req, res){
         var ID = new mongodb.ObjectID(req.body._id);
         // Remove all forms associated with apartment
         db.apartmentForms.remove({id: ID}, function(err, result){
+            if(err) return;
             // Remove apartment
-            collection.remove({_id: ID}, function(err, result2){
-                
+            collection.remove({_id: ID}, function(err2, result2){
+                if(err2) return;
            });
        });
         
@@ -1726,8 +1780,6 @@ server.post("/apartment_information/db", function(req, res){
     // Wrong action, send error
     else res.send(500, "Unknown action");
 });
-//Callsheet
-new Page("/callsheet", "callsheet.jade", Auth.ADMIN);
 //callsheet.js
 server.post('/callsheet/db', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
@@ -1751,7 +1803,6 @@ server.post('/callsheet/db', function (req, res) {
     else res.send(500, "Unknown action");
 });
 
-new Page("/graphs", "graphs.jade", Auth.ADMIN);
 
 function getLatestIndicators() {
     db.indicators.findOne({$query: {}, $orderby: {date: -1}}, function(err, result) {
@@ -1797,7 +1848,6 @@ server.get("/import/reset_indicators", function(req, res) {
 });
 
 //Importing / Exporting
-new Page("/import", "import.jade", Auth.ADMIN);
 var importCollections = null;
 server.post('/import/db', function (req, res) {
     if(Auth.require(req, res, Auth.ADMIN)) return;
@@ -2617,8 +2667,6 @@ server.listen(Config.nodejs.port, Config.nodejs.ip, function() {
     console.log("ABM Admin Website running...");
 });
 
-// Remove Missionaries
-new Page("/remove_missionary", "remove_missionary.jade", Auth.ADMIN);
 
 //-------------
 function splitFindingPotentials(value) {
@@ -3165,3 +3213,40 @@ function utf8_encode(argString) {
 
   return utftext;
 }
+
+function austral_Format(date){
+    // Variables
+    var year = date.getUTCFullYear(),
+        month = date.getUTCMonth() + 1, // Zero indexed to human readable
+        day = date.getUTCDate(),
+        hour = date.getUTCHours(), 
+        minute = date.getUTCMinutes(),
+        second = date.getUTCSeconds();
+        
+    /* Processing */
+    // Variables
+    var daysInMonth = Date.UTC(year, month + 1, 1) - Date.UTC(year, month, 1);
+        daysInMonth = daysInMonth / 24 / 60 / 60 / 1000;
+        
+    // Calls
+    if(hour + 10 >= 24) { hour = (hour + 10) % 24; day += 1; }
+    if(day > daysInMonth) { day % daysInMonth; month += 1; }
+    if(month > 12) { month % 12; year += 1; }
+    
+    // Formatting
+    year = year.zeroPad(1000); 
+    month = month.zeroPad(10);
+    day = day.zeroPad(10);
+    hour = (hour + 10).zeroPad(10);
+    minute = minute.zeroPad(10);
+    second = second.zeroPad(10);
+    
+    // Return formatted string
+    return year + '-' + month + '-' + day + ' ' + hour + ':' + minute + ':' + second;
+}
+
+Number.prototype.zeroPad = Number.prototype.zeroPad || 
+     function(base){
+       var nr = this, len = (String(base).length - String(nr).length)+1;
+       return len > 0? new Array(len).join('0')+nr : nr;
+    };
