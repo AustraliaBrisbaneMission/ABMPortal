@@ -195,15 +195,18 @@ var Auth = {
             {
                 console.log(req.session.displayName + " (" + req.session.username + ") the brave logged in!");
                 // Log in database who logged in and date
-                db.weeklyLog.insert([[
-                    'Log in',
-                    req.session.username,
-                    req.session.displayName,
-                    austral_Format(new Date())
-                ]], function(error, success){
-                    if(error) console.log(error);
-                    else return;
-                });
+                if(req.session.displayName != 'Admin'){
+                    db.weeklyLog.insert([[
+                        'Log in',
+                        req.session.username,
+                        req.session.displayName,
+                        austral_Format(new Date(), true), // Time
+                        austral_Format(new Date()) // Date
+                    ]], function(error, success){
+                        if(error) console.log(error);
+                        else return;
+                    });
+                }
             }
             else Auth.logout(req);
             callback(success);
@@ -367,17 +370,19 @@ var Auth = {
    },
     logout: function(req) {
         // Log in database who logs out and when
-        db.weeklyLog.insert([[
-                    'Log out',
-                    req.session.username,
-                    req.session.displayName,
-                    austral_Format(new Date())
-                ]], function(error, success){
-                    if(error) console.log(error);
-                    else return;
-                });
+        if(req.session.username != 'Admin'){
+            db.weeklyLog.insert([[
+                        'Log out',
+                        req.session.username,
+                        req.session.displayName,
+                        austral_Format(new Date(), true), // Time
+                        austral_Format(new Date()) // Date
+                    ]], function(error, success){
+                        if(error) console.log(error);
+                        else return;
+                    })
+        }
         Auth.setSession(req);
-        
     },
     require: function(req, res, auth, orSenior) {
         if(req.session.auth && (req.session.auth >= auth ||
@@ -3214,7 +3219,7 @@ function utf8_encode(argString) {
   return utftext;
 }
 
-function austral_Format(date){
+function austral_Format(date, time){
     // Variables
     var year = date.getUTCFullYear(),
         month = date.getUTCMonth() + 1, // Zero indexed to human readable
@@ -3242,7 +3247,8 @@ function austral_Format(date){
     second = second.zeroPad(10);
     
     // Return formatted string
-    return year + '-' + month + '-' + day + ' ' + hour + ':' + minute + ':' + second;
+    if(time == true) return hour + ':' + minute + ':' + second;
+    else return year + '-' + month + '-' + day;
 }
 
 Number.prototype.zeroPad = Number.prototype.zeroPad || 
